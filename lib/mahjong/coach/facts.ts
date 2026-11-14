@@ -3,7 +3,7 @@
  * LLM には計算をさせず、ここで確定した事実だけを渡して言い換え・解説させる。
  * 事実シートそのものも画面に出せるので、学習教材として単体でも使える。
  */
-import { WAIT_NAMES } from "../evaluate";
+import { WAIT_NAMES, type Meld, type WinInput, type WinResult } from "../evaluate";
 import { analyzeDiscards } from "../shape";
 import { doraFromIndicator, isHonor, kindName, suitOf, type Tile, type TileKind } from "../tiles";
 import { danger, decideAction, genbutsuOf, visibleCounts } from "../game/ai";
@@ -220,4 +220,31 @@ export function readFacts(s: GameState, viewer: number, target: number): FactShe
     );
   }
   return { kind: "read", title: `${tp.name}の河読み`, lines };
+}
+
+// ------------------------------------------------------------------ 符計算ドリル
+
+function meldInputText(m: Meld): string {
+  const label = { chi: "チー", pon: "ポン", minkan: "大明槓", kakan: "加槓", ankan: "暗槓" }[m.type];
+  const tiles = m.type === "chi" ? [m.tile, m.tile + 1, m.tile + 2] : Array(m.type === "pon" ? 3 : 4).fill(m.tile);
+  return `${label}[${kinds(tiles)}]`;
+}
+
+/** 盤面のない単独の和了（ドリル用）の事実シート */
+export function drillFacts(input: WinInput, w: WinResult): FactSheet {
+  const lines = [
+    `和了: ${input.isTsumo ? "ツモ" : "ロン"}（場風 ${WIND[input.roundWind]}、自風 ${WIND[input.seatWind]}${input.seatWind === 0 ? "、親" : "、子"}）`,
+    `手牌: ${kinds([...input.concealed].sort((a, b) => a - b))}`,
+    `和了牌: ${kindName(input.winTile)}`,
+    ...(input.melds.length ? [`副露: ${input.melds.map(meldInputText).join(" ")}`] : []),
+    `面子構成（最も高くなる解釈）: ${w.structure}`,
+    `待ちの形: ${WAIT_NAMES[w.waitType]}`,
+    "成立した役:",
+    ...w.yaku.map((y) => `- ${y.name}（${y.han}翻）${yakuDefinition(y.name) ? `: ${yakuDefinition(y.name)}` : ""}`),
+    "符の内訳:",
+    ...w.fuDetail.map((f) => `- ${f.label}: ${f.fu}符`),
+    `符の合計 ${w.fuDetail.reduce((a, f) => a + f.fu, 0)}符 → 10符単位に切り上げて ${w.fu}符`,
+    `点数: ${w.fu}符${w.han}翻 ${w.payment.limit ? `${w.payment.limit} ` : ""}${w.payment.total}点`,
+  ];
+  return { kind: "win", title: "この問題の符計算", lines };
 }

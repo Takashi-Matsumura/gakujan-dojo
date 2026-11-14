@@ -166,7 +166,7 @@ function Table({
     <div
       className="mj-table relative"
       style={{
-        width: "min(calc(100vw - 16px), calc(100dvh - 230px), 860px)",
+        width: "min(calc(100vw - 16px), calc(100dvh - 275px), 860px)",
         minWidth: 300,
         aspectRatio: "1 / 1",
         containerType: "size",
