@@ -87,10 +87,12 @@ export default function MahjongGame() {
     [state],
   );
 
-  // 鳴き・ロンの選択肢が出ているときは、右クリックで「スキップ」
+  // 鳴きの選択肢が出ているときは、右クリックで「スキップ」（ロンできるときは誤操作防止のため無効）
   useEffect(() => {
     if (!state || state.phase !== "calls" || !state.pending) return;
-    if (state.pending.responses[HUMAN] !== undefined || state.pending.options[HUMAN].length === 0) return;
+    const options = state.pending.options[HUMAN];
+    if (state.pending.responses[HUMAN] !== undefined || options.length === 0) return;
+    if (options.some((o) => o.type === "ron")) return;
     const onContextMenu = (e: MouseEvent) => {
       // 設定パネル内では通常の右クリックメニューを残す
       if (e.target instanceof Element && e.target.closest("#game-drawer")) return;
@@ -436,7 +438,9 @@ function HumanArea({
           <ActionButton color="#d6d6d6" onClick={() => act({ type: "pass", seat: HUMAN })}>
             <span className="flex flex-col items-center leading-tight">
               スキップ
-              <span className="text-[10px] font-normal opacity-70">右クリックでも可</span>
+              {!callOpts.some((o) => o.type === "ron") && (
+                <span className="text-[10px] font-normal opacity-70">右クリックでも可</span>
+              )}
             </span>
           </ActionButton>
         )}
