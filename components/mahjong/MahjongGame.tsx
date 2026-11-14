@@ -4,6 +4,7 @@
  * 対局画面（人間1 + CPU3）。エンジンの状態を保持し、CPU の手番を自動で進める。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { decideAction } from "@/lib/mahjong/game/ai";
 import {
   applyAction,
@@ -23,6 +24,27 @@ import { CoachPanel } from "./CoachPanel";
 import { discardFacts, readFacts } from "@/lib/mahjong/coach/facts";
 
 const HUMAN = 0;
+
+// three.js はブラウザでのみ読み込む
+const Table3D = dynamic(() => import("./three/Table3D"), {
+  ssr: false,
+  loading: () => <div className="p-10 text-sm opacity-70">3D 卓を読み込んでいます…</div>,
+});
+
+/** 直前の打牌（鳴き受付中はその牌、ツモ番なら上家の最後の打牌） */
+function lastDiscardId(state: GameState): number | null {
+  if (state.pending) return state.pending.tile.id;
+  if (state.phase !== "turn") return null;
+  const prev = state.players[(state.turn + 3) % 4].discards.at(-1);
+  return prev && prev.calledBy === undefined ? prev.tile.id : null;
+}
+
+/** 自分が今クリックして切れる牌 */
+function humanSelectable(state: GameState, riichiMode: boolean): Set<number> {
+  if (!(state.phase === "turn" && state.turn === HUMAN)) return new Set();
+  const opts = turnOptions(state, HUMAN);
+  return new Set(riichiMode ? opts.riichiDiscards : opts.discards);
+}
 const SPEEDS = { slow: 1100, normal: 650, fast: 250 } as const;
 type Speed = keyof typeof SPEEDS;
 
@@ -34,6 +56,7 @@ export default function MahjongGame() {
   const [showNames, setShowNames] = useState(true);
   const [showHints, setShowHints] = useState(true);
   const [markTsumogiri, setMarkTsumogiri] = useState(true);
+  const [view3d, setView3d] = useState(true);
 
   const start = useCallback(() => {
     setError(null);
@@ -114,7 +137,18 @@ export default function MahjongGame() {
   return (
     <div className="flex flex-1 flex-col items-center gap-3 px-2 py-3 lg:flex-row lg:items-start lg:justify-center lg:gap-6">
       <div className="flex flex-col items-center gap-2">
-        <Table state={state} markTsumogiri={markTsumogiri} onNext={() => act({ type: "next" })} onRestart={start} />
+        {view3d ? (
+          <Table3D
+            state={state}
+            lastId={lastDiscardId(state)}
+            markTsumogiri={markTsumogiri}
+            selectable={humanSelectable(state, riichiMode)}
+            riichiMode={riichiMode}
+            onDiscard={(tileId) => act({ type: "discard", seat: HUMAN, tileId, riichi: riichiMode })}
+          />
+        ) : (
+          <Table state={state} markTsumogiri={markTsumogiri} />
+        )}
         <HumanArea
           state={state}
           act={act}
@@ -122,6 +156,7 @@ export default function MahjongGame() {
           setRiichiMode={setRiichiMode}
           showNames={showNames}
           showHints={showHints}
+          hideHand={view3d}
         />
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
@@ -135,31 +170,26 @@ export default function MahjongGame() {
         setShowHints={setShowHints}
         markTsumogiri={markTsumogiri}
         setMarkTsumogiri={setMarkTsumogiri}
+        view3d={view3d}
+        setView3d={setView3d}
       />
+      {(state.phase === "roundEnd" || state.phase === "gameEnd") && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center p-3" style={{ background: "rgba(0,0,0,0.45)" }}>
+          {state.phase === "roundEnd" ? (
+            <RoundResultPanel state={state} onNext={() => act({ type: "next" })} />
+          ) : (
+            <GameEndPanel state={state} onRestart={start} />
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 // ------------------------------------------------------------------ 卓
 
-function Table({
-  state,
-  markTsumogiri,
-  onNext,
-  onRestart,
-}: {
-  state: GameState;
-  markTsumogiri: boolean;
-  onNext: () => void;
-  onRestart: () => void;
-}) {
-  // 直前の打牌を強調（鳴き受付中はその牌、ツモ番なら上家の最後の打牌）
-  const lastId = useMemo(() => {
-    if (state.pending) return state.pending.tile.id;
-    if (state.phase !== "turn") return null;
-    const prev = state.players[(state.turn + 3) % 4].discards.at(-1);
-    return prev && prev.calledBy === undefined ? prev.tile.id : null;
-  }, [state]);
+function Table({ state, markTsumogiri }: { state: GameState; markTsumogiri: boolean }) {
+  const lastId = lastDiscardId(state);
   const reveal = state.phase === "roundEnd" || state.phase === "gameEnd";
 
   return (
@@ -237,16 +267,6 @@ function Table({
           </div>
         );
       })}
-
-      {(state.phase === "roundEnd" || state.phase === "gameEnd") && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center p-3" style={{ background: "rgba(0,0,0,0.45)" }}>
-          {state.phase === "roundEnd" ? (
-            <RoundResultPanel state={state} onNext={onNext} />
-          ) : (
-            <GameEndPanel state={state} onRestart={onRestart} />
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -267,6 +287,7 @@ function HumanArea({
   setRiichiMode,
   showNames,
   showHints,
+  hideHand = false,
 }: {
   state: GameState;
   act: (a: Action) => void;
@@ -274,6 +295,8 @@ function HumanArea({
   setRiichiMode: (v: boolean) => void;
   showNames: boolean;
   showHints: boolean;
+  /** 3D 表示では手牌を卓の中に描くので、ここでは出さない */
+  hideHand?: boolean;
 }) {
   const me = state.players[HUMAN];
   const myTurn = state.phase === "turn" && state.turn === HUMAN;
@@ -282,7 +305,7 @@ function HumanArea({
     state.phase === "calls" && state.pending && state.pending.responses[HUMAN] === undefined
       ? state.pending.options[HUMAN]
       : [];
-  const selectable = new Set(myTurn ? (riichiMode ? opts.riichiDiscards : opts.discards) : []);
+  const selectable = humanSelectable(state, riichiMode);
   const tiles = sortedForView(me.hand, me.drawn);
 
   // 学習ヒント
@@ -348,7 +371,7 @@ function HumanArea({
       </div>
 
       {/* 手牌 */}
-      <div className="flex items-end justify-center" style={{ gap: 3 }}>
+      <div className={hideHand ? "hidden" : "flex items-end justify-center"} style={{ gap: 3 }}>
         {tiles.map((t, i) => {
           const isDrawn = me.drawn?.id === t.id && i === tiles.length - 1;
           const can = selectable.has(t.id);
@@ -430,6 +453,8 @@ function SidePanel(props: {
   setShowHints: (v: boolean) => void;
   markTsumogiri: boolean;
   setMarkTsumogiri: (v: boolean) => void;
+  view3d: boolean;
+  setView3d: (v: boolean) => void;
 }) {
   const { state } = props;
   const events = state.events.slice(-14).reverse();
@@ -439,6 +464,7 @@ function SidePanel(props: {
       <div className="flex flex-col gap-1.5">
         <Toggle label="牌の名前を表示" value={props.showNames} onChange={props.setShowNames} />
         <Toggle label="向聴数・待ちのヒント" value={props.showHints} onChange={props.setShowHints} />
+        <Toggle label="3D 表示" value={props.view3d} onChange={props.setView3d} />
         <Toggle label="ツモ切りを暗く表示" value={props.markTsumogiri} onChange={props.setMarkTsumogiri} />
         <label className="mt-1 flex items-center justify-between gap-2">
           CPU の速さ

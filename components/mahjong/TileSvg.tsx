@@ -10,10 +10,10 @@ import { memo, type ReactNode } from "react";
 import { numberOf, suitOf, type TileKind } from "@/lib/mahjong/tiles";
 
 const INK = "#1c1a17";
-const RED = "#c3262e";
+export const RED = "#c3262e";
 const GREEN = "#13784a";
 const BLUE = "#1f4fa0";
-const FACE = "#fbf7ec";
+export const FACE = "#fbf7ec";
 const FACE_EDGE = "#cfc6ae";
 const BACK = "#1f7a58";
 const BACK_DARK = "#155a40";
@@ -155,7 +155,7 @@ function Bamboo({ x, y, h, color, rot = 0 }: { x: number; y: number; h: number; 
   );
 }
 
-function faceContent(kind: TileKind, red: boolean): ReactNode {
+export function faceContent(kind: TileKind, red: boolean): ReactNode {
   const suit = suitOf(kind);
   const n = numberOf(kind);
   if (suit === "z") {
