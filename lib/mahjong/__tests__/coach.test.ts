@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { decideAction } from "../game/ai";
 import { applyAction, createGame } from "../game/engine";
 import type { GameState } from "../game/types";
-import { discardFacts, readFacts, winFacts } from "../coach/facts";
+import { defenseFacts, discardFacts, readFacts, tenpaiOpponents, winFacts } from "../coach/facts";
+import { danger, genbutsuOf, visibleCounts } from "../game/ai";
+import { playerWaits } from "../game/engine";
 import { buildMessages } from "../coach/prompt";
 import { kindName } from "../tiles";
 import { GET, POST } from "@/app/api/coach/route";
@@ -52,6 +54,32 @@ describe("事実シート", () => {
     expect(f.lines.some((l) => l.includes("立直中"))).toBe(true);
     expect(f.lines.some((l) => l.startsWith("自分の手牌の安全度"))).toBe(true);
     expect(readFacts(s, 0, 0)).toBeNull();
+  });
+
+  it("守備: ダマテンも検出し、推奨は最も危険な相手に対して一番安全な牌", () => {
+    // 自分（席1）の手番で、立直していない相手がテンパイしている局面
+    const s = advanceUntil(
+      7,
+      (x) =>
+        x.phase === "turn" &&
+        x.turn === 1 &&
+        !x.players[1].riichi &&
+        [0, 2, 3].some((i) => !x.players[i].riichi && playerWaits(x.players[i]).length > 0),
+    );
+    const threats = tenpaiOpponents(s, 1);
+    expect(threats.some((i) => !s.players[i].riichi)).toBe(true);
+    expect(threats).not.toContain(1);
+    const f = defenseFacts(s, 1, threats)!;
+    expect(f.kind).toBe("defense");
+    expect(f.askBeforeExplain).toBe(true);
+    const visible = visibleCounts(s);
+    const maxDanger = (k: number) => Math.max(...threats.map((t) => danger(s, t, k, visible)));
+    const best = Math.min(...[...new Set(s.players[1].hand.map((t) => t.kind))].map(maxDanger));
+    expect(maxDanger(f.headline!.tile!)).toBe(best);
+    // 推奨牌が誰かの現物なら、理由に「現物」と書かれる
+    if (threats.every((t) => genbutsuOf(s, t).has(f.headline!.tile!))) expect(f.headline!.note).toContain("現物");
+    expect(defenseFacts(s, 0, threats)).toBeNull();
+    expect(defenseFacts(s, 1, [])).toBeNull();
   });
 
   it("プロンプトは事実シートを含み、事実以外を作らないよう指示する", () => {

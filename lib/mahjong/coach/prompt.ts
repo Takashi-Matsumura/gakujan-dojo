@@ -3,7 +3,7 @@
  */
 import type { CoachKind } from "./facts";
 
-export const COACH_KINDS: readonly CoachKind[] = ["win", "discard", "read"];
+export const COACH_KINDS: readonly CoachKind[] = ["win", "discard", "read", "defense"];
 
 export const MAX_FACT_LINES = 80;
 export const MAX_FACT_LINE_LENGTH = 400;
@@ -40,6 +40,15 @@ const TASK: Record<CoachKind, string> = {
     "2. 推測は断定せず「〜の可能性がある」と書く。「比較的安全な牌」と「注意が必要な牌」を取り違えないこと。",
     "3. 最後に、自分の手牌から切るならどれが比較的安全かを、安全度の数値を根拠に1〜2文で。",
     "全体で250字程度。",
+  ].join("\n"),
+  defense: [
+    "相手がテンパイしている局面で、放銃（ロンされること）を避ける打牌を解説してください。",
+    "1. コードの推奨打牌がなぜ比較的安全なのかを、現物・筋・字牌の見え方など事実シートの理由で説明。",
+    "2. 手牌の中で危険度の高い牌を1〜2枚挙げ、なぜ危ないのか（無筋など）を説明。",
+    "3. 危険度は河から推測した目安で、確実に安全なのは現物だけであることを一言添える。",
+    "危険度は数値が小さいほど安全、大きいほど危険。「安全度が高い」と言い換えて数値の向きを逆にしないこと。",
+    "相手の実際の待ちは事実シートに無いので、待ちを断定してはいけない。",
+    "全体で200字程度。",
   ].join("\n"),
 };
 

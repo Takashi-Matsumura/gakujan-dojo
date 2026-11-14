@@ -7,11 +7,11 @@ import { WAIT_NAMES, type Meld, type WinInput, type WinResult } from "../evaluat
 import { analyzeDiscards } from "../shape";
 import { doraFromIndicator, isHonor, kindName, suitOf, type Tile, type TileKind } from "../tiles";
 import { danger, decideAction, genbutsuOf, visibleCounts } from "../game/ai";
-import { doraIndicators, handCounts, remainingTiles, roundLabel, seatWind, turnOptions } from "../game/engine";
-import type { CalledMeld, GameState } from "../game/types";
+import { doraIndicators, handCounts, playerWaits, remainingTiles, roundLabel, seatWind, turnOptions } from "../game/engine";
+import type { CalledMeld, GameState, PlayerState } from "../game/types";
 import { yakuDefinition } from "./glossary";
 
-export type CoachKind = "win" | "discard" | "read";
+export type CoachKind = "win" | "discard" | "read" | "defense";
 
 export interface FactSheet {
   kind: CoachKind;
@@ -238,6 +238,93 @@ export function readFacts(s: GameState, viewer: number, target: number): FactShe
     );
   }
   return { kind: "read", title: `${tp.name}の河読み`, lines };
+}
+
+// ------------------------------------------------------------------ 守備（相手のテンパイ）
+
+/** 相手がテンパイしているか（ツモ直後・鳴き直後の14枚形は、その牌を切る前の形で判定） */
+function isTenpai(p: PlayerState): boolean {
+  if (p.hand.length % 3 === 1) return playerWaits(p).length > 0;
+  if (p.drawn) return playerWaits(p, p.hand.filter((t) => t.id !== p.drawn!.id)).length > 0;
+  return p.hand.some((t) => playerWaits(p, p.hand.filter((x) => x.id !== t.id)).length > 0);
+}
+
+/** viewer から見てテンパイしている相手の席（練習用にコードが手牌を見て判定する） */
+export function tenpaiOpponents(s: GameState, viewer: number): number[] {
+  if (s.phase !== "turn" && s.phase !== "calls") return [];
+  return [0, 1, 2, 3].filter((i) => i !== viewer && isTenpai(s.players[i]));
+}
+
+export function threatStatus(p: PlayerState): string {
+  if (p.riichi) return "立直";
+  return p.melds.length ? `${p.melds.length}副露` : "ダマテン";
+}
+
+/** 危険度の理由（ai.danger と同じ基準を言葉にしたもの） */
+function dangerReason(s: GameState, threat: number, kind: TileKind, visible: number[]): string {
+  const g = genbutsuOf(s, threat);
+  if (g.has(kind)) return "現物";
+  if (isHonor(kind)) return `字牌・${visible[kind]}枚見え${visible[kind] >= 3 ? "（単騎待ちのみ）" : ""}`;
+  const n = kind % 9;
+  const suji = n <= 2 ? g.has(kind + 3) : n >= 6 ? g.has(kind - 3) : g.has(kind - 3) && g.has(kind + 3);
+  if (suji) return n <= 2 || n >= 6 ? "筋（片筋）" : "筋（中筋）";
+  return n === 0 || n === 8 ? "無筋の端牌" : "無筋";
+}
+
+export function defenseFacts(s: GameState, seat: number, threats: number[]): FactSheet | null {
+  if (s.phase !== "turn" || s.turn !== seat || !threats.length) return null;
+  const p = s.players[seat];
+  const opts = turnOptions(s, seat);
+  const allowed = [...new Set(p.hand.filter((t) => opts.discards.includes(t.id)).map((t) => t.kind))];
+  if (!allowed.length) return null;
+  const visible = visibleCounts(s);
+  const analysis = analyzeDiscards(handCounts(p.hand), p.melds.length, visible);
+  const shape = new Map(analysis.map((o) => [o.discard, o]));
+  const current = Math.min(...analysis.map((o) => o.shanten));
+
+  const ranked = allowed
+    .map((k) => {
+      const ds = threats.map((t) => danger(s, t, k, visible));
+      return { k, ds, total: ds.reduce((a, b) => a + b, 0), max: Math.max(...ds), o: shape.get(k) };
+    })
+    .sort(
+      (a, b) =>
+        a.max - b.max ||
+        a.total - b.total ||
+        (a.o?.shanten ?? 9) - (b.o?.shanten ?? 9) ||
+        (b.o?.ukeireTotal ?? 0) - (a.o?.ukeireTotal ?? 0),
+    );
+  const best = ranked[0];
+  const reasons = threats.map((t) => `${s.players[t].name}に${dangerReason(s, t, best.k, visible)}`).join("、");
+
+  const lines = [
+    ...contextLines(s, seat),
+    `手牌: ${names([...p.hand].filter((t) => t.id !== p.drawn?.id).sort((a, b) => a.kind - b.kind))}`,
+    ...(p.drawn ? [`ツモ牌: ${kindName(p.drawn.kind)}`] : []),
+    `自分の向聴数: ${current <= 0 ? "テンパイ" : `${current}向聴`}`,
+    "注意: 相手がテンパイかどうかは練習用にコードが判定した。危険度は河など見えている情報だけで計算しており、相手の実際の待ちは使っていない。",
+    "テンパイしている相手:",
+    ...threats.map((t) => {
+      const tp = s.players[t];
+      const g = [...genbutsuOf(s, t)].sort((a, b) => a - b);
+      return `- ${tp.name}: ${threatStatus(tp)}。現物（ロンされない牌）: ${kinds(g) || "なし"}`;
+    }),
+    "危険度の基準（数値が小さいほど安全。0=現物で最も安全、10=最も危険）: 現物0 < 3枚見えの字牌1 < 筋の端牌2 < 2枚見えの字牌3 < 筋4 < 生牌に近い字牌・無筋の端牌6 < 無筋の2・8は8 < 無筋の3〜7は10",
+    "自分の手牌の危険度（安全な順。数値が小さいほど安全）:",
+    ...ranked.map((r) => {
+      const per = threats.map((t, i) => `${s.players[t].name.replace("CPU ", "")}=${r.ds[i]}（${dangerReason(s, t, r.k, visible)}）`).join(" ");
+      const sh = r.o ? `、切った後 ${r.o.shanten <= 0 ? "テンパイ" : `${r.o.shanten}向聴`}` : "";
+      return `- ${kindName(r.k)}: ${per}${sh}`;
+    }),
+    `コードの推奨: ${kindName(best.k)}切り（${reasons}。最も危険な相手に対する安全度が一番高い牌を選び、同じなら手が崩れにくい牌）`,
+  ];
+  return {
+    kind: "defense",
+    title: "守備の何切る（相手がテンパイ）",
+    lines,
+    headline: { text: `${kindName(best.k)}切り`, tile: best.k, note: reasons },
+    askBeforeExplain: true,
+  };
 }
 
 // ------------------------------------------------------------------ 符計算ドリル
