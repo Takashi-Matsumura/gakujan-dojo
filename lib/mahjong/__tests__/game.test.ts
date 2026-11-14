@@ -63,3 +63,51 @@ describe("対局エンジン", () => {
     ).toThrow();
   });
 });
+
+describe("CPU のダマテン", () => {
+  it("ときどきダマにし、ダマにした手はどの待ちでも立直なしで役がある", async () => {
+    const { decideAction, shouldDama } = await import("../game/ai");
+    const { applyAction, createGame, playerWaits, seatWind, toMelds, doraIndicators, turnOptions } = await import("../game/engine");
+    const { evaluateWin } = await import("../evaluate");
+    const damaRounds = new Set<string>();
+    let dama = 0;
+    let riichi = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      let s = createGame({ seed, humanSeats: [] });
+      for (let i = 0; i < 20000 && s.phase !== "gameEnd"; i++) {
+        if (s.phase === "roundEnd") {
+          s = applyAction(s, { type: "next" });
+          continue;
+        }
+        const seat = s.phase === "calls" ? s.pending!.responses.findIndex((r) => r === undefined) : s.turn;
+        const a = decideAction(s, seat)!;
+        if (a.type === "discard" && !s.players[seat].riichi && turnOptions(s, seat).riichiDiscards.includes(a.tileId)) {
+          const tile = s.players[seat].hand.find((t) => t.id === a.tileId)!;
+          if (a.riichi) riichi++;
+          else if (shouldDama(s, seat, tile)) {
+            const key = `${seed}-${s.roundWind}-${s.dealer}-${s.honba}-${seat}`;
+            if (!damaRounds.has(key)) dama++;
+            damaRounds.add(key);
+            const p = s.players[seat];
+            const rest = p.hand.filter((t) => t.id !== tile.id);
+            for (const w of playerWaits(p, rest)) {
+              const r = evaluateWin({
+                concealed: rest.map((t) => t.kind),
+                melds: toMelds(p),
+                winTile: w,
+                isTsumo: false,
+                seatWind: seatWind(s, seat),
+                roundWind: s.roundWind,
+                doraIndicators: doraIndicators(s).map((t) => t.kind),
+              });
+              expect(r).not.toBeNull();
+            }
+          }
+        }
+        s = applyAction(s, a);
+      }
+    }
+    expect(dama).toBeGreaterThan(0);
+    expect(riichi).toBeGreaterThan(dama);
+  });
+});

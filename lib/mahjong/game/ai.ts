@@ -1,13 +1,14 @@
 /**
  * ルールベースの CPU 思考。
  * - 攻撃: 向聴数 → 受け入れ枚数 → 牌の価値（字牌・端牌から切る、ドラは残す）
- * - テンパイ即リー（門前）
+ * - テンパイしたら基本は立直。ただし役があって高い手（4翻以上）や、局ごとに一定の確率でダマテンにする
  * - 守備: 立直者がいて一向聴以上なら、安全度の高い牌（現物 > 字牌/筋 > …）を切る
  * - 鳴き: 役牌のポン、役のある鳴き手での前進するチー/ポン
  */
+import { evaluateWin } from "../evaluate";
 import { analyzeDiscards, shanten } from "../shape";
 import { doraFromIndicator, isHonor, isTerminal, type Tile, type TileKind } from "../tiles";
-import { doraIndicators, handCounts, seatWind, turnOptions } from "./engine";
+import { doraIndicators, handCounts, playerWaits, seatWind, toMelds, turnOptions } from "./engine";
 import type { Action, CallOption, GameState } from "./types";
 
 export function decideAction(s: GameState, seat: number): Action | null {
@@ -83,6 +84,48 @@ function pickTile(hand: Tile[], kind: TileKind, allowed: number[]): Tile | undef
   return cands.find((t) => !t.red) ?? cands[0];
 }
 
+/** 局・席ごとに決まる 0〜1 の擬似乱数（同じ局では毎巡同じ判断になる） */
+function roundNoise(s: GameState, seat: number): number {
+  let h = (s.seed ^ (s.roundWind * 73856093) ^ (s.dealer * 19349663) ^ (s.honba * 83492791) ^ ((seat + 1) * 2654435761)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 2 ** 32;
+}
+
+/** ダマテンにする確率（役がある手のとき） */
+export const DAMA_RATE = 0.2;
+/** この翻数以上（ドラ込み・立直なし）なら必ずダマ */
+export const DAMA_HAN = 4;
+
+/**
+ * tile を切ってテンパイしたとき、立直せずにダマにするか。
+ * どの待ちでも立直なしで役があり、かつ「十分に高い」か「局ごとの乱数が当たった」ときにダマ。
+ */
+export function shouldDama(s: GameState, seat: number, tile: Tile): boolean {
+  const p = s.players[seat];
+  const rest = p.hand.filter((t) => t.id !== tile.id);
+  const ws = playerWaits(p, rest);
+  if (!ws.length) return false;
+  const reds = rest.filter((t) => t.red).length;
+  let minHan = Infinity;
+  for (const w of ws) {
+    const r = evaluateWin({
+      concealed: rest.map((t) => t.kind),
+      melds: toMelds(p),
+      winTile: w,
+      isTsumo: false,
+      seatWind: seatWind(s, seat),
+      roundWind: s.roundWind,
+      doraIndicators: doraIndicators(s).map((t) => t.kind),
+      redCount: reds,
+    });
+    if (!r || r.yaku.every((y) => y.name.startsWith("ドラ") || y.name.startsWith("赤ドラ") || y.name.startsWith("裏ドラ")))
+      return false;
+    minHan = Math.min(minHan, r.yakuman ? 13 : r.han);
+  }
+  return minHan >= DAMA_HAN || roundNoise(s, seat) < DAMA_RATE;
+}
+
 function decideTurn(s: GameState, seat: number): Action {
   const p = s.players[seat];
   const opts = turnOptions(s, seat);
@@ -114,7 +157,8 @@ function decideTurn(s: GameState, seat: number): Action {
   const tile = pickTile(p.hand, chosen, opts.discards)!;
   const riichi =
     opts.riichiDiscards.includes(tile.id) &&
-    (analysis.find((o) => o.discard === chosen)?.ukeireTotal ?? 0) > 0;
+    (analysis.find((o) => o.discard === chosen)?.ukeireTotal ?? 0) > 0 &&
+    !shouldDama(s, seat, tile);
   return { type: "discard", seat, tileId: tile.id, riichi };
 }
 
