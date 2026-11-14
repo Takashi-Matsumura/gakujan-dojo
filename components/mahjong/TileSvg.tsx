@@ -156,39 +156,52 @@ function Bamboo({ x, y, h, color, rot = 0 }: { x: number; y: number; h: number; 
   );
 }
 
-/** 一索の鳥（尾羽を広げて止まり木にとまる姿） */
+/** 一索の鳥（尾羽を扇のように広げた正面向きの孔雀）。牌面に余白を残す大きさで描く */
 function SouBird() {
   const ORANGE = "#d9861c";
+  const TEAL = "#2a9d8f";
+  // 尾羽: 胴の付け根から扇状に7本
+  const feathers = [-162, -138, -114, -90, -66, -42, -18].map((deg) => {
+    const r = (deg * Math.PI) / 180;
+    return { x: 30 + Math.cos(r) * 22, y: 50 + Math.sin(r) * 22 };
+  });
   return (
-    <g strokeLinecap="round" strokeLinejoin="round">
-      {/* 尾羽 */}
-      {[
-        [36, 50, 52, 70],
-        [35, 52, 45, 75],
-        [33, 53, 36, 76],
-      ].map(([x1, y1, x2, y2], i) => (
+    <g transform="translate(30 37.5) scale(0.8) translate(-30 -42)" strokeLinecap="round" strokeLinejoin="round">
+      {feathers.map((f, i) => (
         <g key={i}>
-          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={GREEN} strokeWidth={4.5} />
-          <circle cx={x2} cy={y2} r={3} fill={i === 1 ? RED : BLUE} />
+          <line x1={30} y1={50} x2={f.x} y2={f.y} stroke={GREEN} strokeWidth={2.6} />
+          <circle cx={f.x} cy={f.y} r={4} fill={TEAL} />
+          <circle cx={f.x} cy={f.y} r={2.2} fill={BLUE} />
+          <circle cx={f.x} cy={f.y} r={0.9} fill="#f2c94c" />
         </g>
       ))}
-      {/* 止まり木と脚 */}
-      <line x1={12} y1={64} x2={34} y2={64} stroke={ORANGE} strokeWidth={2.5} />
-      <line x1={22} y1={56} x2={21} y2={64} stroke={ORANGE} strokeWidth={2} />
-      <line x1={27} y1={56} x2={27} y2={64} stroke={ORANGE} strokeWidth={2} />
-      {/* 胴体とお腹 */}
-      <ellipse cx={27} cy={44} rx={12} ry={14} fill={GREEN} />
-      <ellipse cx={24} cy={48} rx={6} ry={9} fill="#f2c94c" />
-      {/* 翼 */}
-      <path d="M27 34 Q44 36 41 54 Q31 51 27 34 Z" fill={BLUE} />
-      <path d="M30 40 Q38 42 37 50" fill="none" stroke={FACE} strokeWidth={1.2} opacity={0.7} />
-      {/* 頭・冠羽・くちばし・目 */}
-      <circle cx={21} cy={24} r={8} fill={GREEN} />
-      <path d="M19 16 Q18 9 23 7 M22 16 Q24 10 29 10" fill="none" stroke={RED} strokeWidth={2.2} />
-      <path d="M14 23 L7 26 L14 28 Z" fill={ORANGE} />
-      <circle cx={19} cy={22.5} r={2.6} fill={FACE} />
-      <circle cx={18.6} cy={22.5} r={1.3} fill={INK} />
-      <circle cx={24} cy={28} r={2.2} fill={RED} opacity={0.85} />
+      {/* 胴と翼 */}
+      <path d="M22 50 Q19 60 26 64 L34 64 Q41 60 38 50 Z" fill={GREEN} />
+      <ellipse cx={30} cy={51} rx={7} ry={11} fill={BLUE} />
+      <path d="M25 46 Q30 52 25 60" fill="none" stroke={TEAL} strokeWidth={1.6} />
+      <path d="M35 46 Q30 52 35 60" fill="none" stroke={TEAL} strokeWidth={1.6} />
+      {/* 首と頭 */}
+      <path d="M27.5 44 Q28 37 30 34 Q32 37 32.5 44 Z" fill={BLUE} />
+      <circle cx={30} cy={32} r={4.6} fill={BLUE} />
+      {/* 冠羽 */}
+      {[-22, 0, 22].map((d, i) => {
+        const r = ((d - 90) * Math.PI) / 180;
+        const x = 30 + Math.cos(r) * 7;
+        const y = 30 + Math.sin(r) * 7;
+        return (
+          <g key={i}>
+            <line x1={30} y1={28} x2={x} y2={y} stroke={INK} strokeWidth={0.9} />
+            <circle cx={x} cy={y} r={1.4} fill={RED} />
+          </g>
+        );
+      })}
+      {/* 目とくちばし */}
+      <circle cx={28.4} cy={31.4} r={1.2} fill={FACE} />
+      <circle cx={31.6} cy={31.4} r={1.2} fill={FACE} />
+      <path d="M29 34 L30 36.6 L31 34 Z" fill={ORANGE} />
+      {/* 脚 */}
+      <line x1={27} y1={63} x2={26} y2={68} stroke={ORANGE} strokeWidth={1.8} />
+      <line x1={33} y1={63} x2={34} y2={68} stroke={ORANGE} strokeWidth={1.8} />
     </g>
   );
 }
