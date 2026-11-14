@@ -160,11 +160,9 @@ function Bamboo({ x, y, h, color, rot = 0 }: { x: number; y: number; h: number; 
 function SouBird() {
   const ORANGE = "#d9861c";
   const TEAL = "#2a9d8f";
-  // 尾羽: 胴の付け根から扇状に7本
-  const feathers = [-162, -138, -114, -90, -66, -42, -18].map((deg) => {
-    const r = (deg * Math.PI) / 180;
-    return { x: 30 + Math.cos(r) * 22, y: 50 + Math.sin(r) * 22 };
-  });
+  // 尾羽: 胴の付け根 (30,50) から扇状に7本（半径22、-162°〜-18°）。
+  // サーバとブラウザで三角関数の端数が変わり hydration がずれるため、座標は計算済みの固定値にする
+  const feathers = [{ x: 9.08, y: 43.2 }, { x: 13.65, y: 35.28 }, { x: 21.05, y: 29.9 }, { x: 30.0, y: 28.0 }, { x: 38.95, y: 29.9 }, { x: 46.35, y: 35.28 }, { x: 50.92, y: 43.2 }];
   return (
     <g transform="translate(30 37.5) scale(0.8) translate(-30 -42)" strokeLinecap="round" strokeLinejoin="round">
       {feathers.map((f, i) => (
@@ -184,10 +182,7 @@ function SouBird() {
       <path d="M27.5 44 Q28 37 30 34 Q32 37 32.5 44 Z" fill={BLUE} />
       <circle cx={30} cy={32} r={4.6} fill={BLUE} />
       {/* 冠羽 */}
-      {[-22, 0, 22].map((d, i) => {
-        const r = ((d - 90) * Math.PI) / 180;
-        const x = 30 + Math.cos(r) * 7;
-        const y = 30 + Math.sin(r) * 7;
+      {[[27.38, 23.51], [30.0, 23.0], [32.62, 23.51]].map(([x, y], i) => {
         return (
           <g key={i}>
             <line x1={30} y1={28} x2={x} y2={y} stroke={INK} strokeWidth={0.9} />
