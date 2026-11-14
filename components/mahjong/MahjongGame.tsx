@@ -87,6 +87,20 @@ export default function MahjongGame() {
     [state],
   );
 
+  // 鳴き・ロンの選択肢が出ているときは、右クリックで「スキップ」
+  useEffect(() => {
+    if (!state || state.phase !== "calls" || !state.pending) return;
+    if (state.pending.responses[HUMAN] !== undefined || state.pending.options[HUMAN].length === 0) return;
+    const onContextMenu = (e: MouseEvent) => {
+      // 設定パネル内では通常の右クリックメニューを残す
+      if (e.target instanceof Element && e.target.closest("#game-drawer")) return;
+      e.preventDefault();
+      act({ type: "pass", seat: HUMAN });
+    };
+    window.addEventListener("contextmenu", onContextMenu);
+    return () => window.removeEventListener("contextmenu", onContextMenu);
+  }, [state, act]);
+
   // CPU の手番・鳴き判断、立直後の自動ツモ切り
   useEffect(() => {
     if (!state) return;
@@ -420,7 +434,10 @@ function HumanArea({
         ))}
         {callOpts.length > 0 && (
           <ActionButton color="#d6d6d6" onClick={() => act({ type: "pass", seat: HUMAN })}>
-            スキップ
+            <span className="flex flex-col items-center leading-tight">
+              スキップ
+              <span className="text-[10px] font-normal opacity-70">右クリックでも可</span>
+            </span>
           </ActionButton>
         )}
         {myTurn && riichiMode && <span className="text-sm opacity-80">立直を宣言する牌を選んでください</span>}
