@@ -46,18 +46,25 @@ function tileValue(s: GameState, seat: number, kind: TileKind): number {
   return v;
 }
 
-/** 立直者 threat に対する危険度（0 = 現物） */
-function danger(s: GameState, threat: number, kind: TileKind, visible: number[]): number {
+/**
+ * threat に対する現物: 本人の捨て牌すべて + 立直宣言以降に他家が切って通った牌。
+ */
+export function genbutsuOf(s: GameState, threat: number): Set<TileKind> {
   const tp = s.players[threat];
-  const genbutsu = new Set(tp.discards.map((d) => d.tile.kind));
-  // 立直後に他家が切って通った牌も現物
+  const set = new Set(tp.discards.map((d) => d.tile.kind));
   if (tp.riichi) {
-    const riichiOrder = tp.riichi.discardIndex;
+    const riichiSeq = tp.discards[tp.riichi.discardIndex].seq;
     s.players.forEach((p, i) => {
       if (i === threat) return;
-      p.discards.slice(Math.max(0, riichiOrder - 1)).forEach((d) => genbutsu.add(d.tile.kind));
+      for (const d of p.discards) if (d.seq > riichiSeq) set.add(d.tile.kind);
     });
   }
+  return set;
+}
+
+/** 立直者 threat に対する危険度（0 = 現物） */
+export function danger(s: GameState, threat: number, kind: TileKind, visible: number[]): number {
+  const genbutsu = genbutsuOf(s, threat);
   if (genbutsu.has(kind)) return 0;
   if (isHonor(kind)) return visible[kind] >= 3 ? 1 : visible[kind] === 2 ? 3 : 6;
   const n = kind % 9;

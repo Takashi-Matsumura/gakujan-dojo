@@ -1,0 +1,159 @@
+"use client";
+
+/**
+ * AI コーチ（ローカル LLM）の解説パネル。
+ * 押した瞬間の局面から事実シートを作り、/api/coach にストリームで解説を依頼する。
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { FactSheet } from "@/lib/mahjong/coach/facts";
+
+type Status = { ok: true; model: string } | { ok: false; error: string };
+
+let statusPromise: Promise<Status> | null = null;
+function fetchStatus(force = false): Promise<Status> {
+  if (!statusPromise || force) {
+    statusPromise = fetch("/api/coach", { cache: "no-store" })
+      .then((r) => r.json() as Promise<Status>)
+      .catch(() => ({ ok: false, error: "API に接続できません" }) as Status);
+  }
+  return statusPromise;
+}
+
+export interface CoachAction {
+  label: string;
+  build: () => FactSheet | null;
+  disabled?: boolean;
+}
+
+export function CoachPanel({ actions, compact = false }: { actions: CoachAction[]; compact?: boolean }) {
+  const [status, setStatus] = useState<Status | null>(null);
+  const [sheet, setSheet] = useState<FactSheet | null>(null);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void fetchStatus().then((s) => alive && setStatus(s));
+    return () => {
+      alive = false;
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const run = useCallback(async (action: CoachAction) => {
+    const facts = action.build();
+    if (!facts) return;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    setSheet(facts);
+    setText("");
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: facts.kind, lines: facts.lines }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok || !res.body) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `エラー（${res.status}）`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        setText((t) => t + decoder.decode(value, { stream: true }));
+      }
+    } catch (e) {
+      if (!ctrl.signal.aborted) setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (abortRef.current === ctrl) setLoading(false);
+    }
+  }, []);
+
+  const stop = () => {
+    abortRef.current?.abort();
+    setLoading(false);
+  };
+
+  const offline = status !== null && !status.ok;
+
+  return (
+    <section className={compact ? "" : "mt-4"}>
+      {!compact && (
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-bold">AI コーチ</h2>
+          <span className="flex items-center gap-1.5 text-xs opacity-75">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: status === null ? "#999" : status.ok ? "#5fd38a" : "#ff7b7b" }}
+            />
+            {status === null ? "確認中" : status.ok ? status.model : "未接続"}
+          </span>
+        </div>
+      )}
+      {offline && (
+        <p className="mb-2 text-xs leading-5 text-red-300">
+          {status.error}。llama-server（gemma4）が起動しているか確認してください。
+          <button className="ml-1 underline" onClick={() => void fetchStatus(true).then(setStatus)}>
+            再確認
+          </button>
+        </p>
+      )}
+      <div className="flex flex-wrap gap-1.5">
+        {actions.map((a) => (
+          <button
+            key={a.label}
+            type="button"
+            disabled={a.disabled || loading || offline}
+            onClick={() => void run(a)}
+            className="rounded-md px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"
+            style={{ background: "#2f6f8f", color: "#f3efe2" }}
+          >
+            {a.label}
+          </button>
+        ))}
+        {loading && (
+          <button type="button" onClick={stop} className="rounded-md px-2.5 py-1.5 text-xs" style={{ background: "#555" }}>
+            停止
+          </button>
+        )}
+      </div>
+
+      {(sheet || error) && (
+        <div className="mt-2 rounded-lg p-3 text-[13px] leading-6" style={{ background: "rgba(0,0,0,0.28)" }}>
+          {sheet && <div className="mb-1 text-xs font-bold opacity-70">{sheet.title}</div>}
+          {error ? (
+            <p className="text-red-300">{error}</p>
+          ) : (
+            <p className="whitespace-pre-wrap">
+              {text}
+              {loading && <span className="animate-pulse opacity-60">{text ? " ▍" : "考えています…"}</span>}
+            </p>
+          )}
+          {sheet && (
+            <details className="mt-2 text-xs opacity-75">
+              <summary className="cursor-pointer">AI に渡した事実（コードで計算した確定情報）</summary>
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {sheet.lines.map((l, i) => (
+                  <li key={i}>{l}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {!loading && text && (
+            <p className="mt-2 text-[11px] opacity-50">
+              解説はローカル LLM の生成文です。数値は「AI に渡した事実」が正です。
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

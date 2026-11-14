@@ -19,6 +19,8 @@ import { kindName, type Tile } from "@/lib/mahjong/tiles";
 import { TileSvg } from "./TileSvg";
 import { CenterInfo, Melds, River, SeatLabel } from "./TableParts";
 import { GameEndPanel, RoundResultPanel } from "./ResultPanel";
+import { CoachPanel } from "./CoachPanel";
+import { discardFacts, readFacts } from "@/lib/mahjong/coach/facts";
 
 const HUMAN = 0;
 const SPEEDS = { slow: 1100, normal: 650, fast: 250 } as const;
@@ -454,6 +456,20 @@ function SidePanel(props: {
       <p className="mt-3 text-xs leading-5 opacity-60">
         河の暗い牌はツモ切り、明るい牌は手出しです。手出しの牌は相手の手の形を読む手がかりになります。★ は赤ドラ。
       </p>
+      <CoachPanel
+        actions={[
+          {
+            label: "何切るを解説",
+            build: () => discardFacts(state, HUMAN),
+            disabled: !(state.phase === "turn" && state.turn === HUMAN),
+          },
+          ...[1, 2, 3].map((seat) => ({
+            label: `${state.players[seat].name.replace("CPU ", "")}の河を読む${state.players[seat].riichi ? "（立直）" : ""}`,
+            build: () => readFacts(state, HUMAN, seat),
+            disabled: state.phase === "gameEnd" || state.players[seat].discards.length === 0,
+          })),
+        ]}
+      />
       <h2 className="mb-1 mt-4 font-bold">経過</h2>
       <ol className="flex flex-col gap-0.5 text-xs opacity-80">
         {events.map((e, i) => (

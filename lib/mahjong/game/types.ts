@@ -16,6 +16,8 @@ export interface CalledMeld {
 
 export interface Discard {
   tile: Tile;
+  /** 局内の通し番号（全員の打牌順） */
+  seq: number;
   /** ツモ切り（河読みの学習用） */
   tsumogiri: boolean;
   /** 立直宣言牌 */
@@ -118,6 +120,8 @@ export interface GameState {
   wall: Tile[];
   drawPos: number;
   kanCount: number;
+  /** 局内の打牌数（Discard.seq の採番用） */
+  discardSeq: number;
   /** 表示済みのドラ表示牌の枚数 */
   doraRevealed: number;
 

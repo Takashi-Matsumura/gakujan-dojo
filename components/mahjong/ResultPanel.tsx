@@ -7,6 +7,8 @@ import type { GameState, RoundResult } from "@/lib/mahjong/game/types";
 import { seatWind } from "@/lib/mahjong/game/engine";
 import { TileSvg } from "./TileSvg";
 import { MeldView, WIND_CHARS } from "./TableParts";
+import { CoachPanel } from "./CoachPanel";
+import { winFacts } from "@/lib/mahjong/coach/facts";
 
 const panel: React.CSSProperties = {
   background: "rgba(18, 24, 21, 0.94)",
@@ -163,6 +165,10 @@ export function RoundResultPanel({ state, onNext }: { state: GameState; onNext: 
           {r.paoSeat !== null && ` ／ 包: ${state.players[r.paoSeat].name}`}
         </div>
         <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>面子構成: {w.structure}</div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <CoachPanel compact actions={[{ label: "AI コーチにこの和了を解説してもらう", build: () => winFacts(state) }]} />
       </div>
 
       <Deltas state={state} result={r} />

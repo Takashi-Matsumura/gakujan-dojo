@@ -62,6 +62,7 @@ export function createGame(opts: NewGameOptions): GameState {
     wall: [],
     drawPos: 0,
     kanCount: 0,
+    discardSeq: 0,
     doraRevealed: 1,
     players: names.map((name, i) => emptyPlayer(name, humans.has(i))),
     turn: 0,
@@ -101,6 +102,7 @@ function startRound(s: GameState): void {
   s.wall = wall;
   s.drawPos = 0;
   s.kanCount = 0;
+  s.discardSeq = 0;
   s.doraRevealed = 1;
   s.players = s.players.map((p) => emptyPlayer(p.name, p.isHuman));
   for (let i = 0; i < 4; i++) {
@@ -427,7 +429,7 @@ function doDiscard(s: GameState, seat: number, tileId: number, riichi: boolean) 
     p.riichi = { discardIndex: p.discards.length, double: s.firstGoAround && p.discards.length === 0 };
     s.riichiPendingSeat = seat;
   }
-  p.discards.push({ tile, tsumogiri, riichi });
+  p.discards.push({ tile, seq: s.discardSeq++, tsumogiri, riichi });
   p.drawn = null;
   p.forbiddenKinds = [];
   s.afterKan = false;
