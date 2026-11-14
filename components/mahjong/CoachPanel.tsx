@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FactSheet } from "@/lib/mahjong/coach/facts";
+import { TileSvg } from "./TileSvg";
 
 type Status = { ok: true; model: string } | { ok: false; error: string };
 
@@ -23,14 +24,29 @@ export interface CoachAction {
   label: string;
   build: () => FactSheet | null;
   disabled?: boolean;
+  /** 結論の表示に LLM を使わない（LLM 未接続でも押せる） */
+  instant?: boolean;
 }
 
-export function CoachPanel({ actions, compact = false }: { actions: CoachAction[]; compact?: boolean }) {
+export function CoachPanel({
+  actions,
+  compact = false,
+  contextKey,
+}: {
+  actions: CoachAction[];
+  compact?: boolean;
+  /** 局面が変わったことを検知するためのキー */
+  contextKey?: string;
+}) {
   const [status, setStatus] = useState<Status | null>(null);
   const [sheet, setSheet] = useState<FactSheet | null>(null);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 結論だけ見せて、説明が必要か尋ねている状態 */
+  const [asking, setAsking] = useState(false);
+  const [declined, setDeclined] = useState(false);
+  const [sheetKey, setSheetKey] = useState<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -42,13 +58,12 @@ export function CoachPanel({ actions, compact = false }: { actions: CoachAction[
     };
   }, []);
 
-  const run = useCallback(async (action: CoachAction) => {
-    const facts = action.build();
-    if (!facts) return;
+  const explain = useCallback(async (facts: FactSheet) => {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setSheet(facts);
+    setAsking(false);
+    setDeclined(false);
     setText("");
     setError(null);
     setLoading(true);
@@ -76,6 +91,23 @@ export function CoachPanel({ actions, compact = false }: { actions: CoachAction[
       if (abortRef.current === ctrl) setLoading(false);
     }
   }, []);
+
+  const run = (action: CoachAction) => {
+    const facts = action.build();
+    if (!facts) return;
+    abortRef.current?.abort();
+    setLoading(false);
+    setSheet(facts);
+    setSheetKey(contextKey);
+    setText("");
+    setError(null);
+    setDeclined(false);
+    if (facts.askBeforeExplain) {
+      setAsking(true);
+      return;
+    }
+    void explain(facts);
+  };
 
   const stop = () => {
     abortRef.current?.abort();
@@ -111,8 +143,8 @@ export function CoachPanel({ actions, compact = false }: { actions: CoachAction[
           <button
             key={a.label}
             type="button"
-            disabled={a.disabled || loading || offline}
-            onClick={() => void run(a)}
+            disabled={a.disabled || loading || (offline && !a.instant)}
+            onClick={() => run(a)}
             className="rounded-md px-2.5 py-1.5 text-xs font-bold disabled:opacity-40"
             style={{ background: "#2f6f8f", color: "#f3efe2" }}
           >
@@ -129,15 +161,54 @@ export function CoachPanel({ actions, compact = false }: { actions: CoachAction[
       {(sheet || error) && (
         <div className="mt-2 rounded-lg p-3 text-[13px] leading-6" style={{ background: "rgba(0,0,0,0.28)" }}>
           {sheet && <div className="mb-1 text-xs font-bold opacity-70">{sheet.title}</div>}
+          {sheet?.headline && (
+            <div className="mb-2 flex items-center gap-3">
+              {sheet.headline.tile !== undefined && <TileSvg kind={sheet.headline.tile} width="40px" highlight="gold" />}
+              <div>
+                <div className="text-base font-bold">おすすめ: {sheet.headline.text}</div>
+                {sheet.headline.note && <div className="text-xs opacity-75">{sheet.headline.note}</div>}
+              </div>
+            </div>
+          )}
+          {sheet && contextKey !== undefined && sheetKey !== contextKey && (
+            <p className="mb-2 text-xs text-amber-300">局面が進んだため、この内容は少し前の局面のものです。</p>
+          )}
+          {asking && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span>なぜこの牌を切るのか、理由の説明を聞きますか？</span>
+              <button
+                type="button"
+                disabled={offline}
+                onClick={() => sheet && void explain(sheet)}
+                className="rounded-md px-3 py-1 text-xs font-bold disabled:opacity-40"
+                style={{ background: "#e8b931", color: "#1c1a17" }}
+              >
+                はい、説明して
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAsking(false);
+                  setDeclined(true);
+                }}
+                className="rounded-md px-3 py-1 text-xs"
+                style={{ background: "#555" }}
+              >
+                いいえ
+              </button>
+              {offline && <span className="text-xs text-red-300">AI コーチが未接続のため説明できません</span>}
+            </div>
+          )}
+          {declined && <p className="text-xs opacity-60">説明は省略しました。必要になったら、もう一度ボタンを押してください。</p>}
           {error ? (
             <p className="text-red-300">{error}</p>
-          ) : (
+          ) : asking || declined ? null : (
             <p className="whitespace-pre-wrap">
               {text}
               {loading && <span className="animate-pulse opacity-60">{text ? " ▍" : "考えています…"}</span>}
             </p>
           )}
-          {sheet && (
+          {sheet && !asking && !declined && (
             <details className="mt-2 text-xs opacity-75">
               <summary className="cursor-pointer">AI に渡した事実（コードで計算した確定情報）</summary>
               <ul className="mt-1 flex flex-col gap-0.5">

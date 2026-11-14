@@ -17,6 +17,10 @@ export interface FactSheet {
   kind: CoachKind;
   title: string;
   lines: string[];
+  /** 説明の前に示す結論（何切るの推奨打牌など） */
+  headline?: { text: string; tile?: TileKind; note?: string };
+  /** true なら結論だけ先に見せ、説明が必要か尋ねてから LLM を呼ぶ */
+  askBeforeExplain?: boolean;
 }
 
 const WIND = ["東", "南", "西", "北"];
@@ -115,6 +119,8 @@ export function discardFacts(s: GameState, seat: number): FactSheet | null {
     ...(p.drawn ? [`ツモ牌: ${kindName(p.drawn.kind)}`] : []),
     ...(p.melds.length ? [`副露: ${p.melds.map(meldText).join(" ")}`] : []),
     `立直している相手: ${threats.length ? threats.map((i) => s.players[i].name).join("、") : "なし"}`,
+    "向聴数の意味: 0=テンパイ（あと1枚で和了）、1=一向聴（あと1枚でテンパイ）。数字が大きいほど和了から遠い。2向聴以上はまだ手作りの序盤〜中盤。",
+    "受け入れ枚数の意味: 引くと向聴数が1つ進む（テンパイ・和了に1歩近づく）牌の残り枚数。和了牌の枚数ではない。",
     "打牌候補（向聴数が小さく、受け入れ枚数が多いほど和了に近い。受け入れ枚数は見えている牌を除いた残り枚数）:",
     ...analysis.slice(0, 5).map((o, i) => {
       const shantenText = o.shanten === 0 ? "テンパイ" : `${o.shanten}向聴`;
@@ -125,8 +131,20 @@ export function discardFacts(s: GameState, seat: number): FactSheet | null {
       return `${i + 1}. ${kindName(o.discard)}切り → ${shantenText}、受け入れ ${o.ukeireTotal}枚（${uke || "なし"}）${dangerText}`;
     }),
   ];
+  let headline: FactSheet["headline"];
   if (recKind !== undefined) {
     const isDefense = threats.length > 0 && analysis[0].shanten >= 1;
+    const riichi = rec?.type === "discard" && !!rec.riichi;
+    const opt = analysis.find((o) => o.discard === recKind);
+    headline = {
+      text: `${kindName(recKind)}切り${riichi ? "（立直）" : ""}`,
+      tile: recKind,
+      note: isDefense
+        ? "相手の立直に対して手が遠いので、安全な牌を優先"
+        : opt
+          ? `${opt.shanten <= 0 ? "テンパイ" : `${opt.shanten}向聴`}・受け入れ${opt.ukeireTotal}枚`
+          : undefined,
+    };
     lines.push(
       `コードの推奨: ${kindName(recKind)}切り${rec?.type === "discard" && rec.riichi ? "（立直）" : ""}` +
         (isDefense ? "（相手の立直に対して手が遠いので守備を優先）" : "（向聴数→受け入れ枚数→牌の価値の順で比較）"),
@@ -135,7 +153,7 @@ export function discardFacts(s: GameState, seat: number): FactSheet | null {
   if (opts.riichiDiscards.length) {
     lines.push(`立直できる打牌: ${kinds([...new Set(p.hand.filter((t) => opts.riichiDiscards.includes(t.id)).map((t) => t.kind))])}`);
   }
-  return { kind: "discard", title: "この局面の何切る", lines };
+  return { kind: "discard", title: "この局面の何切る", lines, headline, askBeforeExplain: true };
 }
 
 // ------------------------------------------------------------------ 河読み

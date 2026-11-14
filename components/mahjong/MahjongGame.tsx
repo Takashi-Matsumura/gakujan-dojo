@@ -457,10 +457,12 @@ function SidePanel(props: {
         河の暗い牌はツモ切り、明るい牌は手出しです。手出しの牌は相手の手の形を読む手がかりになります。★ は赤ドラ。
       </p>
       <CoachPanel
+        contextKey={`${state.roundWind}-${state.dealer}-${state.honba}-${state.discardSeq}-${state.turn}-${state.phase}`}
         actions={[
           {
-            label: "何切るを解説",
+            label: "何を切る？",
             build: () => discardFacts(state, HUMAN),
+            instant: true,
             disabled: !(state.phase === "turn" && state.turn === HUMAN),
           },
           ...[1, 2, 3].map((seat) => ({
