@@ -156,47 +156,63 @@ function Bamboo({ x, y, h, color, rot = 0 }: { x: number; y: number; h: number; 
   );
 }
 
-/** 一索の鳥（尾羽を扇のように広げた正面向きの孔雀）。牌面に余白を残す大きさで描く */
+/**
+ * 一索の鳥（伝統的な孔雀の図案）。
+ * 上: 白い目玉模様が並ぶ緑の扇形の尾羽 / 下: 黒い輪郭の白い胴と格子模様の翼 / 赤いくちばしと脚。
+ * 三角関数の結果はサーバとブラウザで端数が変わり hydration がずれるため、座標は計算済みの固定値。
+ */
+const BIRD_FRINGE: [number, number, number, number][] = [[14.6, 22.6, 7.84, 21.44], [15.3, 20.28, 10.45, 18.57], [16.46, 18.1, 10.51, 14.75], [18.02, 16.13, 14.07, 12.92], [19.95, 14.43, 15.54, 9.3], [22.18, 13.05, 19.6, 8.72], [24.65, 12.03, 22.3, 5.74], [27.28, 11.41, 26.39, 6.49], [30.0, 11.2, 30.0, 4.5], [32.72, 11.41, 33.61, 6.49], [35.35, 12.03, 37.7, 5.74], [37.82, 13.05, 40.4, 8.72], [40.05, 14.43, 44.46, 9.3], [41.98, 16.13, 45.93, 12.92], [43.54, 18.1, 49.49, 14.75], [44.7, 20.28, 49.55, 18.57], [45.4, 22.6, 52.16, 21.44]];
+const BIRD_WING_RIBS: [number, number, number, number][] = [[25.0, 61.0, 12.0, 61.0], [25.36, 58.95, 13.15, 56.32], [26.4, 57.14, 16.45, 52.21], [28.0, 55.8, 21.5, 49.15], [29.96, 55.09, 27.7, 47.53], [32.04, 55.09, 34.3, 47.53], [34.0, 55.8, 40.5, 49.15], [35.6, 57.14, 45.55, 52.21], [36.64, 58.95, 48.85, 56.32], [37.0, 61.0, 50.0, 61.0]];
+const BIRD_EYES: [number, number][] = [
+  [25.5, 15], [34.5, 15],
+  [21, 22], [30, 22], [39, 22],
+  [17, 29], [25.5, 29], [34.5, 29], [43, 29],
+  [21, 36], [30, 36], [39, 36],
+];
+
 function SouBird() {
-  const ORANGE = "#d9861c";
-  const TEAL = "#2a9d8f";
-  // 尾羽: 胴の付け根 (30,50) から扇状に7本（半径22、-162°〜-18°）。
-  // サーバとブラウザで三角関数の端数が変わり hydration がずれるため、座標は計算済みの固定値にする
-  const feathers = [{ x: 9.08, y: 43.2 }, { x: 13.65, y: 35.28 }, { x: 21.05, y: 29.9 }, { x: 30.0, y: 28.0 }, { x: 38.95, y: 29.9 }, { x: 46.35, y: 35.28 }, { x: 50.92, y: 43.2 }];
+  const PEACOCK = "#4f8a2f";
+  const BEAK = "#c4472b";
   return (
-    <g transform="translate(30 37.5) scale(0.8) translate(-30 -42)" strokeLinecap="round" strokeLinejoin="round">
-      {feathers.map((f, i) => (
-        <g key={i}>
-          <line x1={30} y1={50} x2={f.x} y2={f.y} stroke={GREEN} strokeWidth={2.6} />
-          <circle cx={f.x} cy={f.y} r={4} fill={TEAL} />
-          <circle cx={f.x} cy={f.y} r={2.2} fill={BLUE} />
-          <circle cx={f.x} cy={f.y} r={0.9} fill="#f2c94c" />
-        </g>
+    <g transform="translate(30 41) scale(0.86) translate(-30 -41)" strokeLinecap="round" strokeLinejoin="round">
+      {/* 尾羽の扇 */}
+      {BIRD_FRINGE.map(([x1, y1, x2, y2], i) => (
+        <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={PEACOCK} strokeWidth={1.9} />
       ))}
-      {/* 胴と翼 */}
-      <path d="M22 50 Q19 60 26 64 L34 64 Q41 60 38 50 Z" fill={GREEN} />
-      <ellipse cx={30} cy={51} rx={7} ry={11} fill={BLUE} />
-      <path d="M25 46 Q30 52 25 60" fill="none" stroke={TEAL} strokeWidth={1.6} />
-      <path d="M35 46 Q30 52 35 60" fill="none" stroke={TEAL} strokeWidth={1.6} />
-      {/* 首と頭 */}
-      <path d="M27.5 44 Q28 37 30 34 Q32 37 32.5 44 Z" fill={BLUE} />
-      <circle cx={30} cy={32} r={4.6} fill={BLUE} />
-      {/* 冠羽 */}
-      {[[27.38, 23.51], [30.0, 23.0], [32.62, 23.51]].map(([x, y], i) => {
-        return (
-          <g key={i}>
-            <line x1={30} y1={28} x2={x} y2={y} stroke={INK} strokeWidth={0.9} />
-            <circle cx={x} cy={y} r={1.4} fill={RED} />
-          </g>
-        );
-      })}
-      {/* 目とくちばし */}
-      <circle cx={28.4} cy={31.4} r={1.2} fill={FACE} />
-      <circle cx={31.6} cy={31.4} r={1.2} fill={FACE} />
-      <path d="M29 34 L30 36.6 L31 34 Z" fill={ORANGE} />
+      <ellipse cx={30} cy={25} rx={18.5} ry={15.5} fill={PEACOCK} />
+      <path d="M15 33 Q14.5 41 20.5 43.5 L39.5 43.5 Q45.5 41 45 33 Z" fill={PEACOCK} />
+      {[24, 28, 32, 36].map((x) => (
+        <line key={x} x1={x} y1={42} x2={x} y2={50} stroke={PEACOCK} strokeWidth={1.4} />
+      ))}
+      {BIRD_EYES.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={2.7} fill="none" stroke="#ffffff" strokeWidth={1.6} />
+      ))}
+
+      {/* 翼（格子模様の半円） */}
+      <path d="M12 61 Q12 46 31 47 Q50 46 50 61 Z" fill="#ffffff" stroke={INK} strokeWidth={1.3} />
+      {BIRD_WING_RIBS.map(([x1, y1, x2, y2], i) => (
+        <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={INK} strokeWidth={0.9} />
+      ))}
+      <path d="M17 58 Q19 50 31 51 Q43 50 45 58" fill="none" stroke={INK} strokeWidth={0.9} />
+      <path d="M21.5 59.5 Q23 54 31 54.5 Q39 54 40.5 59.5" fill="none" stroke={INK} strokeWidth={0.8} />
+
+      {/* 冠羽とくちばし */}
+      <path d="M17 50 L8 45 M17 51.5 L7.5 50" stroke={BEAK} strokeWidth={1.5} />
+      <path d="M15.5 53 L9 54.5 L15.5 56 Z" fill={BEAK} />
+
+      {/* 胴と頭（白、黒い輪郭） */}
+      <path
+        d="M15.5 54.5 Q15 49 20 48.5 Q25 48.5 24.5 54 Q24 57 27 58 Q35 57 41 59 Q44 62 39 65 Q30 68 21 64 Q15.5 61 15.5 54.5 Z"
+        fill="#ffffff"
+        stroke={INK}
+        strokeWidth={1.4}
+      />
+      <path d="M26 60.5 Q32 59 38 61.5" fill="none" stroke={INK} strokeWidth={0.9} />
+      <circle cx={19.6} cy={52.2} r={1.2} fill={INK} />
+
       {/* 脚 */}
-      <line x1={27} y1={63} x2={26} y2={68} stroke={ORANGE} strokeWidth={1.8} />
-      <line x1={33} y1={63} x2={34} y2={68} stroke={ORANGE} strokeWidth={1.8} />
+      <path d="M27 66 L26 74 M26 74 L22.5 75 M26 74 L28.5 75.5" stroke={BEAK} strokeWidth={1.6} />
+      <path d="M34 66 L35 74 M35 74 L31.5 75 M35 74 L38.5 75.5" stroke={BEAK} strokeWidth={1.6} />
     </g>
   );
 }
