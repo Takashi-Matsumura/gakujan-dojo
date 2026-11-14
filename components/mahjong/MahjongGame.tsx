@@ -59,12 +59,28 @@ export default function MahjongGame() {
   const [view3d, setView3d] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [alertTenpai, setAlertTenpai] = useState(true);
+  /** 守備の何切るを、自分の手番ごとに自動で出す */
+  const [defenseAuto, setDefenseAuto] = useState(false);
+  /** 手動でおすすめを出した局面（その局面の間だけ手牌をハイライトする） */
+  const [shownKey, setShownKey] = useState<string | null>(null);
 
   // 相手のテンパイ（立直・ダマ・副露を問わない）。守備練習の通知に使う
   const threats = useMemo(
     () => (state && alertTenpai ? tenpaiOpponents(state, HUMAN) : []),
     [state, alertTenpai],
   );
+
+  // おすすめの牌（手牌のハイライト用）
+  const recommendId = useMemo(() => {
+    if (!state || !threats.length || !(state.phase === "turn" && state.turn === HUMAN)) return null;
+    if (state.players[HUMAN].riichi) return null;
+    if (!defenseAuto && shownKey !== coachKey(state)) return null;
+    const kind = defenseFacts(state, HUMAN, threats)?.headline?.tile;
+    if (kind === undefined) return null;
+    const allowed = turnOptions(state, HUMAN).discards;
+    const cands = state.players[HUMAN].hand.filter((t) => t.kind === kind && allowed.includes(t.id));
+    return (cands.find((t) => !t.red) ?? cands[0])?.id ?? null;
+  }, [state, threats, defenseAuto, shownKey]);
 
   // Esc で引き出しパネルを閉じる
   useEffect(() => {
@@ -175,6 +191,7 @@ export default function MahjongGame() {
       showNames={showNames}
       showHints={showHints}
       hideHand={view3d}
+      recommendId={recommendId}
     />
   );
 
@@ -189,6 +206,7 @@ export default function MahjongGame() {
             markTsumogiri={markTsumogiri}
             selectable={humanSelectable(state, riichiMode)}
             riichiMode={riichiMode}
+            recommendId={recommendId}
             onDiscard={(tileId) => act({ type: "discard", seat: HUMAN, tileId, riichi: riichiMode })}
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center px-2">
@@ -204,7 +222,15 @@ export default function MahjongGame() {
         </div>
       )}
       {error && <p className="absolute left-3 top-12 z-10 text-sm text-red-400">{error}</p>}
-      {threats.length > 0 && <ThreatAlert state={state} threats={threats} />}
+      {threats.length > 0 && (
+        <ThreatAlert
+          state={state}
+          threats={threats}
+          auto={defenseAuto}
+          setAuto={setDefenseAuto}
+          onShown={() => setShownKey(coachKey(state))}
+        />
+      )}
 
       {/* 設定・AI コーチ（普段は隠す引き出しパネル） */}
       {!drawerOpen && (
@@ -373,6 +399,7 @@ function HumanArea({
   showNames,
   showHints,
   hideHand = false,
+  recommendId = null,
 }: {
   state: GameState;
   act: (a: Action) => void;
@@ -382,6 +409,8 @@ function HumanArea({
   showHints: boolean;
   /** 3D 表示では手牌を卓の中に描くので、ここでは出さない */
   hideHand?: boolean;
+  /** AI コーチのおすすめの牌（ハイライトする） */
+  recommendId?: number | null;
 }) {
   const me = state.players[HUMAN];
   const myTurn = state.phase === "turn" && state.turn === HUMAN;
@@ -480,7 +509,7 @@ function HumanArea({
                 red={t.red}
                 width={HAND_TILE}
                 dim={myTurn && !can}
-                highlight={riichiMode && can ? "gold" : null}
+                highlight={riichiMode && can ? "gold" : t.id === recommendId ? "blue" : null}
               />
               {showNames && (
                 <span className="mt-0.5 text-[10px] leading-none opacity-70 sm:text-xs">{kindName(t.kind)}</span>
@@ -535,7 +564,19 @@ function ActionButton({ children, color, onClick }: { children: React.ReactNode;
 
 const coachKey = (s: GameState) => `${s.roundWind}-${s.dealer}-${s.honba}-${s.discardSeq}-${s.turn}-${s.phase}`;
 
-function ThreatAlert({ state, threats }: { state: GameState; threats: number[] }) {
+function ThreatAlert({
+  state,
+  threats,
+  auto,
+  setAuto,
+  onShown,
+}: {
+  state: GameState;
+  threats: number[];
+  auto: boolean;
+  setAuto: (v: boolean) => void;
+  onShown: () => void;
+}) {
   // 閉じても、テンパイしている相手の顔ぶれが変わったら再表示する
   const key = `${state.roundWind}-${state.dealer}-${state.honba}:${threats.join(",")}`;
   const [closedKey, setClosedKey] = useState<string | null>(null);
@@ -578,9 +619,15 @@ function ThreatAlert({ state, threats }: { state: GameState; threats: number[] }
           </div>
           {!inRiichi && (
             <div className="mt-2">
+              <label className="mb-1.5 flex w-fit cursor-pointer items-center gap-1.5 text-xs">
+                <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="h-3.5 w-3.5 accent-amber-400" />
+                Auto（自分の手番ごとに自動でおすすめを表示）
+              </label>
               <CoachPanel
                 compact
                 contextKey={coachKey(state)}
+                autoRun={auto && myTurn}
+                onRun={onShown}
                 actions={[
                   {
                     label: myTurn ? "次に何を切る？（守備）" : "次に何を切る？（自分の手番で押せます）",

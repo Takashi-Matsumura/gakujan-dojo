@@ -32,11 +32,17 @@ export function CoachPanel({
   actions,
   compact = false,
   contextKey,
+  autoRun = false,
+  onRun,
 }: {
   actions: CoachAction[];
   compact?: boolean;
   /** 局面が変わったことを検知するためのキー */
   contextKey?: string;
+  /** true なら局面が変わるたびに先頭のアクションを自動で実行する（結論の表示まで） */
+  autoRun?: boolean;
+  /** アクションを実行したとき（手動・自動とも）に呼ぶ */
+  onRun?: (facts: FactSheet) => void;
 }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [sheet, setSheet] = useState<FactSheet | null>(null);
@@ -48,6 +54,27 @@ export function CoachPanel({
   const [declined, setDeclined] = useState(false);
   const [sheetKey, setSheetKey] = useState<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+  const [autoKey, setAutoKey] = useState<string | undefined>(undefined);
+
+  // 自動モード: 局面が変わったら先頭のアクションを実行する（描画中に state を合わせる React の推奨パターン）
+  if (autoRun && contextKey !== autoKey) {
+    setAutoKey(contextKey);
+    const first = actions[0];
+    const facts = first && !first.disabled ? first.build() : null;
+    if (facts) {
+      setSheet(facts);
+      setSheetKey(contextKey);
+      setText("");
+      setError(null);
+      setLoading(false);
+      setDeclined(false);
+      setAsking(!!facts.askBeforeExplain);
+    }
+  }
+  // 自動で切り替わったら、前の局面の解説のストリームは止める
+  useEffect(() => {
+    if (autoRun) abortRef.current?.abort();
+  }, [autoRun, contextKey]);
 
   useEffect(() => {
     let alive = true;
@@ -95,6 +122,7 @@ export function CoachPanel({
   const run = (action: CoachAction) => {
     const facts = action.build();
     if (!facts) return;
+    onRun?.(facts);
     abortRef.current?.abort();
     setLoading(false);
     setSheet(facts);
