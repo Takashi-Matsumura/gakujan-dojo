@@ -153,8 +153,8 @@ interface SeatProps {
   reveal: boolean;
   selectable: Set<number>;
   riichiMode: boolean;
-  /** AI コーチのおすすめの牌（ハイライトする） */
-  recommendId?: number | null;
+  /** ハイライトする自分の牌（AI コーチのおすすめ・鳴きで使う牌） */
+  highlightIds?: ReadonlySet<number>;
   onDiscard: (tileId: number) => void;
 }
 
@@ -182,7 +182,7 @@ function meldLayout(meld: CalledMeld, owner: number): MeldItem[] {
   return out;
 }
 
-function Seat({ faces, state, seat, lastId, markTsumogiri, reveal, selectable, riichiMode, recommendId, onDiscard }: SeatProps) {
+function Seat({ faces, state, seat, lastId, markTsumogiri, reveal, selectable, riichiMode, highlightIds, onDiscard }: SeatProps) {
   const p = state.players[seat];
   const rel = (seat - HUMAN + 4) % 4;
   const [hover, setHover] = useState<number | null>(null);
@@ -268,11 +268,11 @@ function Seat({ faces, state, seat, lastId, markTsumogiri, reveal, selectable, r
           pose="stand"
           tilt={0.45}
           position={[hx / handScale, 0, HUMAN_HAND_Z / handScale]}
-          lift={can && hover === t.id ? 0.28 : t.id === recommendId ? 0.18 : 0}
+          lift={can && hover === t.id ? 0.28 : highlightIds?.has(t.id) ? 0.18 : 0}
           variant={
             riichiMode && can
               ? "gold"
-              : t.id === recommendId
+              : highlightIds?.has(t.id)
                 ? "blue"
                 : can && hover === t.id
                   ? "select"
@@ -408,7 +408,7 @@ export interface Table3DProps {
   markTsumogiri: boolean;
   selectable: Set<number>;
   riichiMode: boolean;
-  recommendId?: number | null;
+  highlightIds?: ReadonlySet<number>;
   onDiscard: (tileId: number) => void;
 }
 

@@ -63,6 +63,8 @@ export default function MahjongGame() {
   const [defenseAuto, setDefenseAuto] = useState(false);
   /** 手動でおすすめを出した局面（その局面の間だけ手牌をハイライトする） */
   const [shownKey, setShownKey] = useState<string | null>(null);
+  /** マウスを乗せている鳴きボタン（その鳴きで使う牌だけをハイライトする） */
+  const [hoverCall, setHoverCall] = useState<number | null>(null);
 
   // 相手のテンパイ（立直・ダマ・副露を問わない）。守備練習の通知に使う
   const threats = useMemo(
@@ -81,6 +83,18 @@ export default function MahjongGame() {
     const cands = state.players[HUMAN].hand.filter((t) => t.kind === kind && allowed.includes(t.id));
     return (cands.find((t) => !t.red) ?? cands[0])?.id ?? null;
   }, [state, threats, defenseAuto, shownKey]);
+
+  // ポン・チー・カンの選択肢が出ているときは、その鳴きで使う自分の牌をハイライトする
+  const highlightIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (recommendId !== null) ids.add(recommendId);
+    if (state?.phase === "calls" && state.pending && state.pending.responses[HUMAN] === undefined) {
+      const opts = state.pending.options[HUMAN];
+      const targets = hoverCall !== null && opts[hoverCall] ? [opts[hoverCall]] : opts;
+      for (const o of targets) for (const id of o.tileIds ?? []) ids.add(id);
+    }
+    return ids;
+  }, [state, recommendId, hoverCall]);
 
   // Esc で引き出しパネルを閉じる
   useEffect(() => {
@@ -101,6 +115,7 @@ export default function MahjongGame() {
       if (!state) return;
       try {
         setState(applyAction(state, a));
+        setHoverCall(null);
         setError(null);
         setRiichiMode(false);
       } catch (e) {
@@ -191,7 +206,8 @@ export default function MahjongGame() {
       showNames={showNames}
       showHints={showHints}
       hideHand={view3d}
-      recommendId={recommendId}
+      highlightIds={highlightIds}
+      setHoverCall={setHoverCall}
     />
   );
 
@@ -206,7 +222,7 @@ export default function MahjongGame() {
             markTsumogiri={markTsumogiri}
             selectable={humanSelectable(state, riichiMode)}
             riichiMode={riichiMode}
-            recommendId={recommendId}
+            highlightIds={highlightIds}
             onDiscard={(tileId) => act({ type: "discard", seat: HUMAN, tileId, riichi: riichiMode })}
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center px-2">
@@ -399,7 +415,8 @@ function HumanArea({
   showNames,
   showHints,
   hideHand = false,
-  recommendId = null,
+  highlightIds,
+  setHoverCall,
 }: {
   state: GameState;
   act: (a: Action) => void;
@@ -409,8 +426,9 @@ function HumanArea({
   showHints: boolean;
   /** 3D 表示では手牌を卓の中に描くので、ここでは出さない */
   hideHand?: boolean;
-  /** AI コーチのおすすめの牌（ハイライトする） */
-  recommendId?: number | null;
+  /** ハイライトする自分の牌（AI コーチのおすすめ・鳴きで使う牌） */
+  highlightIds: ReadonlySet<number>;
+  setHoverCall: (i: number | null) => void;
 }) {
   const me = state.players[HUMAN];
   const myTurn = state.phase === "turn" && state.turn === HUMAN;
@@ -459,6 +477,7 @@ function HumanArea({
           ))}
         {callOpts.map((o, i) => (
           <ActionButton
+            onHover={(over) => setHoverCall(over ? i : null)}
             key={i}
             color={o.type === "ron" ? "#e8b931" : "#b9e3c6"}
             onClick={() => act({ ...o, seat: HUMAN, tileIds: o.tileIds ?? [] } as Action)}
@@ -509,7 +528,7 @@ function HumanArea({
                 red={t.red}
                 width={HAND_TILE}
                 dim={myTurn && !can}
-                highlight={riichiMode && can ? "gold" : t.id === recommendId ? "blue" : null}
+                highlight={riichiMode && can ? "gold" : highlightIds.has(t.id) ? "blue" : null}
               />
               {showNames && (
                 <span className="mt-0.5 text-[10px] leading-none opacity-70 sm:text-xs">{kindName(t.kind)}</span>
@@ -547,11 +566,25 @@ function HumanArea({
   );
 }
 
-function ActionButton({ children, color, onClick }: { children: React.ReactNode; color: string; onClick: () => void }) {
+function ActionButton({
+  children,
+  color,
+  onClick,
+  onHover,
+}: {
+  children: React.ReactNode;
+  color: string;
+  onClick: () => void;
+  onHover?: (over: boolean) => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={onHover && (() => onHover(true))}
+      onMouseLeave={onHover && (() => onHover(false))}
+      onFocus={onHover && (() => onHover(true))}
+      onBlur={onHover && (() => onHover(false))}
       className="rounded-lg px-4 py-2 text-base font-bold shadow"
       style={{ background: color, color: "#1c1a17" }}
     >
