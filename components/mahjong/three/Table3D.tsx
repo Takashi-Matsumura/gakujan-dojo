@@ -399,8 +399,8 @@ export interface Table3DProps {
   onDiscard: (tileId: number) => void;
 }
 
-const DEFAULT_CAMERA: [number, number, number] = [0, 27.5, 25.5];
-const DEFAULT_TARGET: [number, number, number] = [0, 0, 5.2];
+const DEFAULT_CAMERA: [number, number, number] = [0, 17.7, 35.5];
+const DEFAULT_TARGET: [number, number, number] = [0, 0, 4.2];
 
 export default function Table3D(props: Table3DProps) {
   const [faces, setFaces] = useState<Faces | null>(null);
@@ -439,7 +439,7 @@ export default function Table3D(props: Table3DProps) {
             minPolarAngle={0.15}
             maxPolarAngle={1.1}
             minDistance={14}
-            maxDistance={45}
+            maxDistance={60}
           />
         </Canvas>
       ) : (
