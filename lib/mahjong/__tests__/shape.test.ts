@@ -73,3 +73,10 @@ describe("精算（25000持ち30000返し、+30/+10/-10/-30、オカトップ）
     expect(r.map((s) => s.points)).toEqual([16.7, 16.7, 16.6, -50]);
   });
 });
+
+describe("向聴数の回帰", () => {
+  it("字牌の孤立牌2枚はテンパイ止まり（メモ化キー衝突の回帰）", () => {
+    expect(shanten(counts("123m456p789s345s12z")).shanten).toBe(0);
+    expect(shanten(counts("1m")).regular).toBe(shanten(counts("1z")).regular);
+  });
+});

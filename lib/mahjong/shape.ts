@@ -100,25 +100,32 @@ export function isAgariShape(counts: readonly number[], meldCount = 0): boolean 
 
 // ---------------------------------------------------------------- 向聴数
 
-/** 一般形の向聴数。-1 がアガリ、0 がテンパイ */
-export function regularShanten(counts: readonly number[], meldCount = 0): number {
-  const c = [...counts];
-  let best = 8;
+/** 1色（9種）で作れる (面子数, 搭子数, 雀頭有無) の組み合わせ。メモ化する */
+type SuitOption = [m: number, t: number, p: number];
+const suitMemo = new Map<number, SuitOption[]>();
+const honorMemo = new Map<number, SuitOption[]>();
+
+function suitOptions(c: number[], isHonorSuit: boolean): SuitOption[] {
+  const memo = isHonorSuit ? honorMemo : suitMemo;
+  let key = 0;
+  for (const n of c) key = key * 5 + n;
+  const hit = memo.get(key);
+  if (hit) return hit;
+  const found = new Set<number>();
+  const len = c.length;
   const search = (i: number, m: number, t: number, p: number) => {
-    while (i < KIND_COUNT && c[i] === 0) i++;
-    if (i === KIND_COUNT) {
-      const tt = Math.min(t, 4 - m);
-      const s = 8 - 2 * m - tt - p;
-      if (s < best) best = s;
+    while (i < len && c[i] === 0) i++;
+    if (i === len) {
+      found.add(m * 100 + t * 10 + p);
       return;
     }
-    // 面子
     if (c[i] >= 3) {
       c[i] -= 3;
       search(i, m + 1, t, p);
       c[i] += 3;
     }
-    if (canStartShuntsu(i) && c[i + 1] > 0 && c[i + 2] > 0) {
+    const seq = !isHonorSuit && i <= 6;
+    if (seq && c[i + 1] > 0 && c[i + 2] > 0) {
       c[i]--;
       c[i + 1]--;
       c[i + 2]--;
@@ -127,34 +134,57 @@ export function regularShanten(counts: readonly number[], meldCount = 0): number
       c[i + 1]++;
       c[i + 2]++;
     }
-    // 雀頭候補 / 対子（搭子）
     if (c[i] >= 2) {
       c[i] -= 2;
       if (p === 0) search(i, m, t, 1);
       search(i, m, t + 1, p);
       c[i] += 2;
     }
-    // 両面・辺張 / 嵌張
-    if (i < 27 && i % 9 <= 7 && c[i + 1] > 0) {
+    if (!isHonorSuit && i <= 7 && c[i + 1] > 0) {
       c[i]--;
       c[i + 1]--;
       search(i, m, t + 1, p);
       c[i]++;
       c[i + 1]++;
     }
-    if (canStartShuntsu(i) && c[i + 2] > 0) {
+    if (seq && c[i + 2] > 0) {
       c[i]--;
       c[i + 2]--;
       search(i, m, t + 1, p);
       c[i]++;
       c[i + 2]++;
     }
-    // 孤立牌として捨てる
     c[i]--;
     search(i, m, t, p);
     c[i]++;
   };
-  search(0, meldCount, 0, 0);
+  search(0, 0, 0, 0);
+  const opts: SuitOption[] = [...found].map((v) => [Math.floor(v / 100), Math.floor(v / 10) % 10, v % 10]);
+  memo.set(key, opts);
+  return opts;
+}
+
+/** 一般形の向聴数。-1 がアガリ、0 がテンパイ */
+export function regularShanten(counts: readonly number[], meldCount = 0): number {
+  const parts = [
+    suitOptions(counts.slice(0, 9), false),
+    suitOptions(counts.slice(9, 18), false),
+    suitOptions(counts.slice(18, 27), false),
+    suitOptions(counts.slice(27, 34), true),
+  ];
+  let best = 8;
+  const combine = (idx: number, m: number, t: number, p: number) => {
+    if (idx === parts.length) {
+      const s = 8 - 2 * m - Math.min(t, 4 - m) - p;
+      if (s < best) best = s;
+      return;
+    }
+    for (const [om, ot, op] of parts[idx]) {
+      if (p + op > 1) continue;
+      combine(idx + 1, m + om, t + ot, p + op);
+    }
+  };
+  combine(0, meldCount, 0, 0);
   return best;
 }
 
@@ -205,6 +235,7 @@ export function shanten(counts: readonly number[], meldCount = 0): ShantenResult
  */
 export function waits(counts: readonly number[], meldCount = 0): TileKind[] {
   const out: TileKind[] = [];
+  if (shanten(counts, meldCount).shanten !== 0) return out;
   const c = [...counts];
   for (let k = 0; k < KIND_COUNT; k++) {
     if (c[k] >= 4) continue;
