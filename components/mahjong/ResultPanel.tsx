@@ -23,10 +23,9 @@ const panel: React.CSSProperties = {
 };
 
 const btn: React.CSSProperties = {
-  marginTop: 16,
-  width: "100%",
-  padding: "12px 16px",
-  fontSize: 17,
+  flexShrink: 0,
+  padding: "10px 18px",
+  fontSize: 16,
   fontWeight: 700,
   borderRadius: 10,
   border: "none",
@@ -34,6 +33,36 @@ const btn: React.CSSProperties = {
   color: "#1c1a17",
   cursor: "pointer",
 };
+
+/**
+ * 見出しと「次へ」ボタン。ボタンが内容の長さで画面外に押し出されないよう、
+ * パネルの先頭に置き、スクロールしても上に貼り付ける。
+ */
+function PanelHeader({ title, action, onAction }: { title: React.ReactNode; action: string; onAction: () => void }) {
+  return (
+    <div
+      style={{
+        position: "sticky",
+        top: -20,
+        zIndex: 1,
+        margin: "-20px -22px 0",
+        padding: "16px 22px 12px",
+        background: "rgba(18, 24, 21, 0.98)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        flexWrap: "wrap",
+      }}
+    >
+      <h2 style={{ fontSize: 22, fontWeight: 800 }}>{title}</h2>
+      <button style={btn} onClick={onAction} autoFocus>
+        {action}
+      </button>
+    </div>
+  );
+}
 
 function Deltas({ state, result }: { state: GameState; result: RoundResult }) {
   return (
@@ -73,15 +102,12 @@ export function RoundResultPanel({ state, onNext }: { state: GameState; onNext: 
   if (r.type === "draw") {
     return (
       <div style={panel}>
-        <h2 style={{ fontSize: 22, fontWeight: 800 }}>流局</h2>
+        <PanelHeader title="流局" action="次の局へ" onAction={onNext} />
         <p style={{ marginTop: 6, opacity: 0.85 }}>
           テンパイ: {state.players.filter((_, i) => r.tenpai[i]).map((p) => p.name).join("、") || "なし"}
           {r.tenpai[state.dealer] ? "（親テンパイで連荘）" : "（親流れ）"}
         </p>
         <Deltas state={state} result={r} />
-        <button style={btn} onClick={onNext}>
-          次の局へ
-        </button>
       </div>
     );
   }
@@ -89,10 +115,16 @@ export function RoundResultPanel({ state, onNext }: { state: GameState; onNext: 
   const winner = state.players[r.winner];
   return (
     <div style={panel}>
-      <h2 style={{ fontSize: 22, fontWeight: 800 }}>
-        {winner.name} の{r.from === null ? "ツモ" : "ロン"}和了
-        {r.from !== null && <span style={{ fontSize: 15, fontWeight: 500, opacity: 0.8 }}>（放銃: {state.players[r.from].name}）</span>}
-      </h2>
+      <PanelHeader
+        title={
+          <>
+            {winner.name} の{r.from === null ? "ツモ" : "ロン"}和了
+            {r.from !== null && <span style={{ fontSize: 15, fontWeight: 500, opacity: 0.8 }}>（放銃: {state.players[r.from].name}）</span>}
+          </>
+        }
+        action="次の局へ"
+        onAction={onNext}
+      />
 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 2, marginTop: 12 }}>
         {r.hand
@@ -172,9 +204,6 @@ export function RoundResultPanel({ state, onNext }: { state: GameState; onNext: 
       </div>
 
       <Deltas state={state} result={r} />
-      <button style={btn} onClick={onNext}>
-        次の局へ
-      </button>
     </div>
   );
 }
@@ -183,7 +212,7 @@ export function GameEndPanel({ state, onRestart }: { state: GameState; onRestart
   const rows = [...state.standings!].sort((a, b) => a.rank - b.rank || a.seat - b.seat);
   return (
     <div style={panel}>
-      <h2 style={{ fontSize: 22, fontWeight: 800 }}>終局</h2>
+      <PanelHeader title="終局" action="もう一度対局する" onAction={onRestart} />
       <p style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>25,000点持ち 30,000点返し ／ 順位点 +30・+10・−10・−30 ／ オカ +20 はトップ</p>
       <table style={{ width: "100%", marginTop: 12, borderCollapse: "collapse", fontSize: 16 }}>
         <thead>
@@ -215,9 +244,6 @@ export function GameEndPanel({ state, onRestart }: { state: GameState; onRestart
           ))}
         </tbody>
       </table>
-      <button style={btn} onClick={onRestart}>
-        もう一度対局する
-      </button>
     </div>
   );
 }
