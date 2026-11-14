@@ -156,13 +156,49 @@ function Bamboo({ x, y, h, color, rot = 0 }: { x: number; y: number; h: number; 
   );
 }
 
+/** 一索の鳥（尾羽を広げて止まり木にとまる姿） */
+function SouBird() {
+  const ORANGE = "#d9861c";
+  return (
+    <g strokeLinecap="round" strokeLinejoin="round">
+      {/* 尾羽 */}
+      {[
+        [36, 50, 52, 70],
+        [35, 52, 45, 75],
+        [33, 53, 36, 76],
+      ].map(([x1, y1, x2, y2], i) => (
+        <g key={i}>
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={GREEN} strokeWidth={4.5} />
+          <circle cx={x2} cy={y2} r={3} fill={i === 1 ? RED : BLUE} />
+        </g>
+      ))}
+      {/* 止まり木と脚 */}
+      <line x1={12} y1={64} x2={34} y2={64} stroke={ORANGE} strokeWidth={2.5} />
+      <line x1={22} y1={56} x2={21} y2={64} stroke={ORANGE} strokeWidth={2} />
+      <line x1={27} y1={56} x2={27} y2={64} stroke={ORANGE} strokeWidth={2} />
+      {/* 胴体とお腹 */}
+      <ellipse cx={27} cy={44} rx={12} ry={14} fill={GREEN} />
+      <ellipse cx={24} cy={48} rx={6} ry={9} fill="#f2c94c" />
+      {/* 翼 */}
+      <path d="M27 34 Q44 36 41 54 Q31 51 27 34 Z" fill={BLUE} />
+      <path d="M30 40 Q38 42 37 50" fill="none" stroke={FACE} strokeWidth={1.2} opacity={0.7} />
+      {/* 頭・冠羽・くちばし・目 */}
+      <circle cx={21} cy={24} r={8} fill={GREEN} />
+      <path d="M19 16 Q18 9 23 7 M22 16 Q24 10 29 10" fill="none" stroke={RED} strokeWidth={2.2} />
+      <path d="M14 23 L7 26 L14 28 Z" fill={ORANGE} />
+      <circle cx={19} cy={22.5} r={2.6} fill={FACE} />
+      <circle cx={18.6} cy={22.5} r={1.3} fill={INK} />
+      <circle cx={24} cy={28} r={2.2} fill={RED} opacity={0.85} />
+    </g>
+  );
+}
+
 export function faceContent(kind: TileKind, red: boolean): ReactNode {
   const suit = suitOf(kind);
   const n = numberOf(kind);
   if (suit === "z") {
-    if (kind === 31) {
-      return <rect x={13} y={15} width={34} height={50} rx={4} fill="none" stroke={BLUE} strokeWidth={3.5} />;
-    }
+    // 白は無地
+    if (kind === 31) return null;
     const color = kind === 32 ? GREEN : kind === 33 ? RED : INK;
     return (
       <text
@@ -209,18 +245,8 @@ export function faceContent(kind: TileKind, red: boolean): ReactNode {
     ));
   }
   // 索子
-  if (n === 1) {
-    return (
-      <g>
-        <rect x={24} y={14} width={12} height={54} rx={6} fill={GREEN} />
-        {[28, 41, 54].map((y) => (
-          <rect key={y} x={22.5} y={y - 1.5} width={15} height={3} rx={1.5} fill={GREEN} />
-        ))}
-        <rect x={28.5} y={18} width={3} height={46} rx={1.5} fill={FACE} opacity={0.5} />
-        <circle cx={30} cy={11} r={5} fill={RED} />
-      </g>
-    );
-  }
+  // 一索は鳥
+  if (n === 1) return <SouBird />;
   return SOU_LAYOUT[n].map(([x, y, h, c, rot], i) => (
     <Bamboo key={i} x={x} y={y} h={h} color={red && n === 5 ? RED : c} rot={rot} />
   ));
