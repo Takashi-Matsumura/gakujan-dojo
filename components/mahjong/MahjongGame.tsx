@@ -57,6 +57,15 @@ export default function MahjongGame() {
   const [showHints, setShowHints] = useState(true);
   const [markTsumogiri, setMarkTsumogiri] = useState(true);
   const [view3d, setView3d] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Esc で引き出しパネルを閉じる
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
 
   const start = useCallback(() => {
     setError(null);
@@ -134,10 +143,23 @@ export default function MahjongGame() {
     );
   }
 
+  const humanArea = (
+    <HumanArea
+      state={state}
+      act={act}
+      riichiMode={riichiMode}
+      setRiichiMode={setRiichiMode}
+      showNames={showNames}
+      showHints={showHints}
+      hideHand={view3d}
+    />
+  );
+
   return (
-    <div className="flex flex-1 flex-col items-center gap-3 px-2 py-3 lg:flex-row lg:items-start lg:justify-center lg:gap-6">
-      <div className="flex flex-col items-center gap-2">
-        {view3d ? (
+    <div className="relative flex flex-1 flex-col">
+      {view3d ? (
+        // 3D: 卓を画面いっぱいに表示し、操作ボタンは卓の下部に重ねる
+        <div className="relative w-full" style={{ height: "calc(100dvh - 44px)" }}>
           <Table3D
             state={state}
             lastId={lastDiscardId(state)}
@@ -146,35 +168,72 @@ export default function MahjongGame() {
             riichiMode={riichiMode}
             onDiscard={(tileId) => act({ type: "discard", seat: HUMAN, tileId, riichi: riichiMode })}
           />
-        ) : (
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center px-2">
+            <div className="pointer-events-auto rounded-xl px-3 py-1.5" style={{ background: "rgba(0,0,0,0.38)" }}>
+              {humanArea}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2 px-2 py-3">
           <Table state={state} markTsumogiri={markTsumogiri} />
-        )}
-        <HumanArea
+          {humanArea}
+        </div>
+      )}
+      {error && <p className="absolute left-3 top-12 z-10 text-sm text-red-400">{error}</p>}
+
+      {/* 設定・AI コーチ（普段は隠す引き出しパネル） */}
+      {!drawerOpen && (
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="fixed right-3 top-[52px] z-30 rounded-lg px-3 py-2 text-sm font-bold shadow-lg"
+          style={{ background: "rgba(20,32,27,0.85)", border: "1px solid rgba(255,255,255,0.18)" }}
+          aria-expanded={false}
+          aria-controls="game-drawer"
+        >
+          ☰ 設定・AI コーチ
+        </button>
+      )}
+      {drawerOpen && (
+        <div className="fixed inset-0 top-11 z-30" style={{ background: "rgba(0,0,0,0.25)" }} onClick={() => setDrawerOpen(false)} aria-hidden />
+      )}
+      <div
+        id="game-drawer"
+        role="dialog"
+        aria-label="設定と AI コーチ"
+        aria-hidden={!drawerOpen}
+        inert={!drawerOpen}
+        className="fixed bottom-0 right-0 top-11 z-40 overflow-y-auto p-3 transition-transform duration-200"
+        style={{
+          width: "min(340px, 92vw)",
+          background: "rgba(16,28,23,0.97)",
+          borderLeft: "1px solid rgba(255,255,255,0.12)",
+          transform: drawerOpen ? "translateX(0)" : "translateX(100%)",
+        }}
+      >
+        <div className="mb-2 flex justify-end">
+          <button type="button" onClick={() => setDrawerOpen(false)} className="rounded-md px-2 py-1 text-sm hover:bg-white/10" aria-label="閉じる">
+            ✕ 閉じる
+          </button>
+        </div>
+        <SidePanel
           state={state}
-          act={act}
-          riichiMode={riichiMode}
-          setRiichiMode={setRiichiMode}
+          speed={speed}
+          setSpeed={setSpeed}
           showNames={showNames}
+          setShowNames={setShowNames}
           showHints={showHints}
-          hideHand={view3d}
+          setShowHints={setShowHints}
+          markTsumogiri={markTsumogiri}
+          setMarkTsumogiri={setMarkTsumogiri}
+          view3d={view3d}
+          setView3d={setView3d}
         />
-        {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
-      <SidePanel
-        state={state}
-        speed={speed}
-        setSpeed={setSpeed}
-        showNames={showNames}
-        setShowNames={setShowNames}
-        showHints={showHints}
-        setShowHints={setShowHints}
-        markTsumogiri={markTsumogiri}
-        setMarkTsumogiri={setMarkTsumogiri}
-        view3d={view3d}
-        setView3d={setView3d}
-      />
+
       {(state.phase === "roundEnd" || state.phase === "gameEnd") && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center p-3" style={{ background: "rgba(0,0,0,0.45)" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3" style={{ background: "rgba(0,0,0,0.45)" }}>
           {state.phase === "roundEnd" ? (
             <RoundResultPanel state={state} onNext={() => act({ type: "next" })} />
           ) : (
@@ -196,7 +255,7 @@ function Table({ state, markTsumogiri }: { state: GameState; markTsumogiri: bool
     <div
       className="mj-table relative"
       style={{
-        width: "min(calc(100vw - 16px), calc(100dvh - 275px), 860px)",
+        width: "min(calc(100vw - 16px), calc(100dvh - 260px), 980px)",
         minWidth: 300,
         aspectRatio: "1 / 1",
         containerType: "size",
@@ -459,7 +518,7 @@ function SidePanel(props: {
   const { state } = props;
   const events = state.events.slice(-14).reverse();
   return (
-    <aside className="w-full max-w-[860px] rounded-xl p-4 text-sm lg:w-64" style={{ background: "rgba(255,255,255,0.05)" }}>
+    <aside className="w-full rounded-xl p-4 text-sm" style={{ background: "rgba(255,255,255,0.05)" }}>
       <h2 className="mb-2 font-bold">表示設定</h2>
       <div className="flex flex-col gap-1.5">
         <Toggle label="牌の名前を表示" value={props.showNames} onChange={props.setShowNames} />

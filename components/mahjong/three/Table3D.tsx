@@ -42,7 +42,8 @@ const geo = {
 const mat = {
   ivory: new THREE.MeshStandardMaterial({ color: "#f3ede0", roughness: 0.42 }),
   ivoryDim: new THREE.MeshStandardMaterial({ color: "#a9a49a", roughness: 0.5 }),
-  green: new THREE.MeshStandardMaterial({ color: "#1f7a58", roughness: 0.48 }),
+  // 牌の背: 山吹色（黄・オレンジ・クリームの中間）
+  back: new THREE.MeshStandardMaterial({ color: "#eba63f", roughness: 0.4 }),
 };
 
 type Faces = Map<string, THREE.Texture>;
@@ -108,7 +109,7 @@ const Tile3D = memo(function Tile3D({ faces, tile, pose, position, rotY = 0, til
     <group position={[position[0], position[1] + y + lift, position[2]]} rotation={[0, rotY, 0]}>
       <group rotation={[rotX, 0, 0]} {...handlers}>
         <mesh geometry={geo.front} material={variant === "dim" ? mat.ivoryDim : mat.ivory} position={[0, 0, D * 0.18]} castShadow receiveShadow />
-        <mesh geometry={geo.back} material={mat.green} position={[0, 0, -D * 0.29]} castShadow receiveShadow />
+        <mesh geometry={geo.back} material={mat.back} position={[0, 0, -D * 0.29]} castShadow receiveShadow />
         {tile && <mesh geometry={geo.face} material={faceMaterial(faces, tile, variant)} position={[0, 0, D / 2 + 0.003]} />}
       </group>
     </group>
@@ -399,7 +400,7 @@ export interface Table3DProps {
 }
 
 const DEFAULT_CAMERA: [number, number, number] = [0, 27.5, 25.5];
-const DEFAULT_TARGET: [number, number, number] = [0, 0, 4.0];
+const DEFAULT_TARGET: [number, number, number] = [0, 0, 5.2];
 
 export default function Table3D(props: Table3DProps) {
   const [faces, setFaces] = useState<Faces | null>(null);
@@ -424,13 +425,8 @@ export default function Table3D(props: Table3DProps) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl"
-      style={{
-        width: "min(calc(100vw - 16px), calc((100dvh - 150px) * 1.25), 1100px)",
-        aspectRatio: "5 / 4",
-        background: "radial-gradient(ellipse at 50% 30%, #2a4a3c, #0d1a14)",
-        boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
-      }}
+      className="relative h-full w-full overflow-hidden"
+      style={{ background: "radial-gradient(ellipse at 50% 30%, #2a4a3c, #0d1a14)" }}
     >
       {faces ? (
         <Canvas shadows={{ type: THREE.PCFShadowMap }} dpr={[1, 2]} camera={{ position: DEFAULT_CAMERA, fov: 40 }}>
@@ -449,15 +445,12 @@ export default function Table3D(props: Table3DProps) {
       ) : (
         <div className="flex h-full items-center justify-center text-sm opacity-70">牌を準備しています…</div>
       )}
-      <div className="pointer-events-none absolute left-3 top-2 text-[11px] opacity-60">ドラッグで視点を回転・ホイールで拡大縮小</div>
-      <button
-        type="button"
-        onClick={resetView}
-        className="absolute right-3 top-2 rounded-md px-2 py-1 text-xs"
-        style={{ background: "rgba(0,0,0,0.45)" }}
-      >
-        視点を戻す
-      </button>
+      <div className="absolute left-3 top-2 flex items-center gap-2">
+        <button type="button" onClick={resetView} className="rounded-md px-2 py-1 text-xs" style={{ background: "rgba(0,0,0,0.45)" }}>
+          視点を戻す
+        </button>
+        <span className="pointer-events-none text-[11px] opacity-60">ドラッグで視点を回転・ホイールで拡大縮小</span>
+      </div>
     </div>
   );
 }

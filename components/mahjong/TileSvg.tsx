@@ -15,8 +15,9 @@ const GREEN = "#13784a";
 const BLUE = "#1f4fa0";
 export const FACE = "#fbf7ec";
 const FACE_EDGE = "#cfc6ae";
-const BACK = "#1f7a58";
-const BACK_DARK = "#155a40";
+// 牌の背: 山吹色（黄・オレンジ・クリームの中間）
+const BACK = "#eba63f";
+const BACK_DARK = "#c98428";
 const SIDE = "#e9dfc6";
 
 const SERIF = "var(--font-tile), 'Hiragino Mincho ProN', 'Yu Mincho', serif";
@@ -248,7 +249,7 @@ function Face({ kind, red, back, highlight }: Pick<TileSvgProps, "kind" | "red" 
       {back ? (
         <>
           <rect x={0.5} y={0.5} width={59} height={79} rx={7} fill={BACK} />
-          <rect x={6} y={6} width={48} height={68} rx={4} fill="none" stroke="#ffffff" strokeOpacity={0.18} strokeWidth={2} />
+          <rect x={6} y={6} width={48} height={68} rx={4} fill="none" stroke="#fff3d6" strokeOpacity={0.45} strokeWidth={2} />
         </>
       ) : (
         <>
