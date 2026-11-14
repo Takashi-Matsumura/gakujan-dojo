@@ -539,46 +539,60 @@ function ThreatAlert({ state, threats }: { state: GameState; threats: number[] }
   // 閉じても、テンパイしている相手の顔ぶれが変わったら再表示する
   const key = `${state.roundWind}-${state.dealer}-${state.honba}:${threats.join(",")}`;
   const [closedKey, setClosedKey] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   if (closedKey === key) return null;
   const myTurn = state.phase === "turn" && state.turn === HUMAN;
   const inRiichi = !!state.players[HUMAN].riichi;
   return (
+    // 卓の中央を隠さないよう、左の余白（視点を戻すボタンの下）に縦長で置く
     <div
       role="status"
-      className="fixed left-1/2 top-[56px] z-20 w-[min(440px,calc(100vw-24px))] -translate-x-1/2 overflow-y-auto rounded-xl p-3 text-sm shadow-xl"
-      style={{ maxHeight: "48vh", background: "rgba(60,22,18,0.92)", border: "1px solid rgba(255,140,110,0.55)" }}
+      className="fixed left-3 top-[92px] z-20 flex w-[min(300px,calc(100vw-24px))] flex-col rounded-xl text-sm shadow-xl"
+      style={{ maxHeight: "calc(100dvh - 240px)", background: "rgba(60,22,18,0.92)", border: "1px solid rgba(255,140,110,0.55)" }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-bold text-red-200">
-            ⚠ 相手がテンパイ: {threats.map((t) => `${state.players[t].name.replace("CPU ", "")}（${threatStatus(state.players[t])}）`).join("・")}
-          </div>
-          <div className="mt-0.5 text-xs leading-5 opacity-80">
+      <div className="flex items-start justify-between gap-2 p-3 pb-2">
+        <div className="font-bold leading-5 text-red-200">
+          ⚠ 相手がテンパイ: {threats.map((t) => `${state.players[t].name.replace("CPU ", "")}（${threatStatus(state.players[t])}）`).join("・")}
+        </div>
+        <div className="flex shrink-0 gap-0.5">
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            className="rounded px-1.5 text-xs hover:bg-white/10"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "通知を広げる" : "通知をたたむ"}
+          >
+            {collapsed ? "▼" : "▲"}
+          </button>
+          <button type="button" onClick={() => setClosedKey(key)} className="rounded px-1.5 text-xs hover:bg-white/10" aria-label="通知を閉じる">
+            ✕
+          </button>
+        </div>
+      </div>
+      {/* たたんでも解説が消えないよう、アンマウントせず隠すだけにする */}
+      <div className={collapsed ? "hidden" : "overflow-y-auto px-3 pb-3"}>
+          <div className="text-xs leading-5 opacity-80">
             {inRiichi
               ? "自分は立直中なので打牌は選べません。"
               : "ロンされないよう、現物・筋・見えている字牌など安全な牌を切る練習をしましょう。"}
           </div>
-        </div>
-        <button type="button" onClick={() => setClosedKey(key)} className="shrink-0 rounded px-1.5 text-xs hover:bg-white/10" aria-label="通知を閉じる">
-          ✕
-        </button>
+          {!inRiichi && (
+            <div className="mt-2">
+              <CoachPanel
+                compact
+                contextKey={coachKey(state)}
+                actions={[
+                  {
+                    label: myTurn ? "次に何を切る？（守備）" : "次に何を切る？（自分の手番で押せます）",
+                    build: () => defenseFacts(state, HUMAN, threats),
+                    instant: true,
+                    disabled: !myTurn,
+                  },
+                ]}
+              />
+            </div>
+          )}
       </div>
-      {!inRiichi && (
-        <div className="mt-2">
-          <CoachPanel
-            compact
-            contextKey={coachKey(state)}
-            actions={[
-              {
-                label: myTurn ? "次に何を切る？（守備）" : "次に何を切る？（自分の手番で押せます）",
-                build: () => defenseFacts(state, HUMAN, threats),
-                instant: true,
-                disabled: !myTurn,
-              },
-            ]}
-          />
-        </div>
-      )}
     </div>
   );
 }
